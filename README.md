@@ -1,51 +1,68 @@
 # PulseDeck
 
-A dark-first, glassmorphic Windows desktop music player with local library indexing, DSP audio analysis (BPM, Camelot musical key, ReplayGain, energy, waveform peaks, intro/outro cues), and Dual-Deck Web Audio Auto-DJ transitions.
+A sleek, dark-first desktop music player for Windows with local library indexing, background DSP audio analysis, synced lyrics, a built-in metadata editor, and an optional Dual-Deck Auto-Mix DJ engine.
 
-## Prerequisites
+---
 
-- **Windows 10/11 (x64)**
-- **Node.js LTS** (`C:\Program Files\nodejs`)
+## Download (Windows 10 / 11 x64)
 
-> **Note on `better-sqlite3`:** PulseDeck pins `electron@42.11.18` (Node ABI `146`) and `better-sqlite3@12.11.1` so `electron-rebuild` downloads the prebuilt Electron binary (`electron-v146-win32-x64`) without requiring Visual Studio C++ Build Tools or Python.
+Download the latest Windows build from the [**Releases**](https://github.com/davide108/pulsedeck/releases/latest) page:
 
-## Setup & Native Module Rebuild
+- **`PulseDeck Setup 1.0.0.exe`** — Standard Windows installer (Start Menu & Desktop shortcuts + uninstaller)
+- **`PulseDeck 1.0.0.exe`** — Portable executable (runs directly without installation)
 
-```powershell
-# Ensure Node.js is on PATH if running from a fresh shell
-$env:PATH = "C:\Program Files\nodejs;$env:PATH"
+> **Windows SmartScreen Note:** Because PulseDeck is currently unsigned, Windows may display *"Windows protected your PC"* on first launch. Click **More info** → **Run anyway** to proceed.
 
-# Use npm.cmd in PowerShell if execution policy restricts npm.ps1
-npm.cmd install
-node node_modules/electron/install.js
-npm.cmd run rebuild
-```
+---
 
-Verify `better-sqlite3` and `music-metadata` load in Electron's Node runtime:
+## Features
 
-```powershell
-$env:ELECTRON_RUN_AS_NODE = "1"
-.\node_modules\.bin\electron.cmd -e "const D = require('better-sqlite3'); console.log(new D(':memory:').prepare('SELECT 1 AS ok').get());"
-```
+### Music Library & Playback
+- **Normal Playback by Default:** Plays tracks sequentially one after another with **Previous**, **Play/Pause**, **Next**, **Shuffle** (`S`), and **Repeat** (`R` — Off, Repeat All, Repeat One).
+- **Watched Folders & File Watching:** Add, toggle, or rescan local music folders with automatic live updates when files are added, modified, or removed.
+- **Wide Format Support:** Supports `.mp3`, `.flac`, `.wav`, `.ogg`, `.m4a`, `.aac`, and `.opus` with clean filename fallback parsing (`Artist - Title`) when tags are missing.
+- **Instant Search & Smart Views:** Fast SQLite-backed filtering by Track, Artist, Album, Genre, BPM range, Camelot Key, and Source Folder, plus custom Playlists and Smart Views (*Recently Added*, *Most Played*, *High Energy*).
 
-## Development
+### Optional Auto-Mix & Dual-Deck DJ Engine
+- **Opt-In Harmonic Mixing (`D`):** Toggle **Auto-Mix** anytime to blend tracks automatically at outro cues using BPM proximity (including half/double-time), Camelot Wheel harmony, genre/energy flow, and anti-repeat scoring.
+- **DJ-Style Transitions:** Choose between **Equal-Power**, **Bass-Swap** (3-band EQ low-end swap), and **Quick Cut** (`0.5s`) with fixed seconds or BPM bar-aligned mix lengths and optional tempo matching.
+- **Transparent Queue & Real-Time Adaptation:** Lock, reorder, remove, or reroll upcoming picks. Manually selecting or skipping a track smoothly crossfades and re-anchors the Auto-Mix queue in the new direction.
 
-```powershell
-npm.cmd run dev
-```
+### Synced & Static Lyrics (`L`)
+- **Automatic Lookup (Synced First):** Automatically checks local `.lrc`/`.txt` sidecars, embedded tags, and **LRCLIB**, prioritizing time-synced LRC lyrics over static text.
+- **Interactive Synced View:** Real-time line highlighting, smooth auto-scroll, click-any-line seeking, and persisted timing offset controls (`-0.5s` / `+0.5s`).
+- **Import & Custom Search:** Import `.lrc` / `.txt` files, paste or edit lyrics directly, or run a custom title/artist search.
 
-## Typechecking & Tests
+### Track Info & Metadata Editor (`I`)
+- Right-click any track (or click the Info icon / press `I`) to inspect container, codec, bitrate, sample rate, channels, and file details.
+- Edit **Title**, **Artist**, **Album**, **Album Artist**, **Genre**, **Year**, **Track #**, **BPM**, **Musical/Camelot Key**, and **Cover Artwork**—all edits are preserved across folder rescans.
 
-```powershell
-npm.cmd run typecheck
-npm.cmd test
-```
+### Background Audio Analysis & Visuals
+- **Non-Blocking DSP Analyzer:** Automatically computes BPM, Camelot key (`1A–12B`), ReplayGain loudness normalization, Energy score, 200-bar clickable waveforms, and intro/outro silence cues.
+- **Dynamic Glassmorphic UI:** Accent colors adapt to the active track's album art (or pick your own preset in Settings), paired with a 60fps frequency spectrum visualizer and an always-on-top **Mini-Player** mode.
 
-## Production Build & Windows Packaging
+---
 
-```powershell
-npm.cmd run build
-npm.cmd run package:win
-```
+## Keyboard Shortcuts
 
-Output installers (`nsis` and `portable`) are generated in `dist/`.
+| Shortcut | Action |
+|---|---|
+| `Space` | Play / Pause |
+| `S` | Toggle Shuffle |
+| `R` | Cycle Repeat (`Off` / `Repeat All` / `Repeat One`) |
+| `D` | Toggle Auto-Mix |
+| `M` | Mute / Unmute |
+| `←` / `→` | Seek backward / forward (`Shift` for 3x) |
+| `↑` / `↓` | Volume up / down (`±5%`) |
+| `L` | Toggle Lyrics view |
+| `I` | Open Track Info & Metadata Editor |
+| `F` / `Ctrl + F` | Focus library search |
+| `Ctrl + ,` | Open Settings |
+| `Esc` | Close active modal / Now Playing overlay |
+| Media Keys | OS Play/Pause, Next, Previous, Stop |
+
+---
+
+## License
+
+Released under the [MIT License](LICENSE).
