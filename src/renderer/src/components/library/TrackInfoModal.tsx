@@ -32,7 +32,7 @@ import { EnergyMeter } from '@/components/common/EnergyMeter'
 import { KeyBadge } from '@/components/common/KeyBadge'
 import { useLibraryStore } from '@/store/useLibraryStore'
 import { usePlayerStore } from '@/store/usePlayerStore'
-import { formatDuration, formatReplayGain } from '@/utils/format'
+import { formatDuration, formatReplayGain, getFileManagerLabel } from '@/utils/format'
 
 interface MetadataDraft {
   title: string
@@ -642,7 +642,7 @@ export function TrackInfoModal() {
                     className="inline-flex h-8 items-center justify-center gap-1.5 rounded-xl border border-white/10 bg-white/[0.04] px-2.5 text-[11px] font-medium text-slate-200 hover:bg-white/10 hover:text-white transition-colors"
                   >
                     <FolderOpen className="h-3.5 w-3.5" />
-                    <span>Reveal in Explorer</span>
+                    <span>Reveal in {getFileManagerLabel()}</span>
                   </button>
                 </div>
               </div>

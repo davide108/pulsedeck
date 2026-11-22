@@ -72,6 +72,7 @@ export const IPC_CHANNELS = {
 export type IpcChannel = (typeof IPC_CHANNELS)[keyof typeof IPC_CHANNELS]
 
 export interface IpcApi {
+  platform: NodeJS.Platform
   folders: {
     list: () => Promise<FolderRecord[]>
     add: () => Promise<FolderRecord | null>

@@ -14,6 +14,7 @@ import type {
 } from '../shared/types'
 
 const api: IpcApi = {
+  platform: process.platform,
   folders: {
     list: () => ipcRenderer.invoke(IPC_CHANNELS.FOLDERS_LIST),
     add: () => ipcRenderer.invoke(IPC_CHANNELS.FOLDERS_ADD),

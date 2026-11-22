@@ -20,7 +20,7 @@ import { KeyBadge } from '@/components/common/KeyBadge'
 import { useLibraryStore } from '@/store/useLibraryStore'
 import { usePlayerStore } from '@/store/usePlayerStore'
 import type { TrackQueryFilter, TrackRecord } from '@shared/types'
-import { formatBpm, formatDuration } from '@/utils/format'
+import { formatBpm, formatDuration, getFileManagerLabel } from '@/utils/format'
 
 export interface PlaylistTrackActions {
   onMoveUp: (index: number) => void
@@ -153,7 +153,7 @@ export function TrackTable({
       },
       {
         id: 'reveal',
-        label: 'Reveal in Explorer',
+        label: `Reveal in ${getFileManagerLabel()}`,
         icon: <FolderOpen className="h-3.5 w-3.5" />,
         onClick: () => void revealTrackInFolder(track.id)
       }

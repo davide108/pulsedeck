@@ -48,3 +48,19 @@ export function formatRelativeDate(timestampMs: number | null | undefined): stri
   if (diffSec < 86400) return `${Math.floor(diffSec / 3600)}h ago`
   return new Date(timestampMs).toLocaleDateString()
 }
+
+export function isMacPlatform(): boolean {
+  return typeof window !== 'undefined' && window.api?.platform === 'darwin'
+}
+
+export function getModKeyLabel(): string {
+  return isMacPlatform() ? '⌘' : 'Ctrl'
+}
+
+export function getFileManagerLabel(): string {
+  if (isMacPlatform()) return 'Finder'
+  if (typeof window !== 'undefined' && window.api?.platform === 'linux') {
+    return 'File Manager'
+  }
+  return 'Explorer'
+}

@@ -1,17 +1,24 @@
 # PulseDeck
 
-A sleek, dark-first desktop music player for Windows with local library indexing, background DSP audio analysis, synced lyrics, a built-in metadata editor, and an optional Dual-Deck Auto-Mix DJ engine.
+A sleek, dark-first desktop music player for **Windows** and **macOS** with local library indexing, background DSP audio analysis, synced lyrics, a built-in metadata editor, and an optional Dual-Deck Auto-Mix DJ engine.
 
 ---
 
-## Download (Windows 10 / 11 x64)
+## Download
 
-Download the latest Windows build from the [**Releases**](https://github.com/davide108/pulsedeck/releases/latest) page:
+Download the latest installers from the [**Releases**](https://github.com/davide108/pulsedeck/releases/latest) page:
 
+### Windows (10 / 11 x64)
 - **`PulseDeck Setup 1.0.0.exe`** — Standard Windows installer (Start Menu & Desktop shortcuts + uninstaller)
 - **`PulseDeck 1.0.0.exe`** — Portable executable (runs directly without installation)
 
 > **Windows SmartScreen Note:** Because PulseDeck is currently unsigned, Windows may display *"Windows protected your PC"* on first launch. Click **More info** → **Run anyway** to proceed.
+
+### macOS (Apple Silicon & Intel)
+- **`PulseDeck-1.0.0-mac-arm64.dmg`** — For Apple Silicon Macs (M1 / M2 / M3 / M4)
+- **`PulseDeck-1.0.0-mac-x64.dmg`** — For Intel Macs
+
+> **macOS Gatekeeper Note:** Because builds are currently unsigned/notarized, macOS may warn that the app cannot be verified on first launch. Open **System Settings → Privacy & Security → Open Anyway**, or run `xattr -cr /Applications/PulseDeck.app` after dragging PulseDeck into Applications.
 
 ---
 
@@ -56,8 +63,8 @@ Download the latest Windows build from the [**Releases**](https://github.com/dav
 | `↑` / `↓` | Volume up / down (`±5%`) |
 | `L` | Toggle Lyrics view |
 | `I` | Open Track Info & Metadata Editor |
-| `F` / `Ctrl + F` | Focus library search |
-| `Ctrl + ,` | Open Settings |
+| `F` / `Ctrl + F` / `⌘ + F` | Focus library search |
+| `Ctrl + ,` / `⌘ + ,` | Open Settings |
 | `Esc` | Close active modal / Now Playing overlay |
 | Media Keys | OS Play/Pause, Next, Previous, Stop |
 

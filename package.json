@@ -12,7 +12,10 @@
     "typecheck": "tsc --noEmit -p tsconfig.node.json && tsc --noEmit -p tsconfig.web.json",
     "rebuild": "electron-rebuild -w better-sqlite3",
     "test": "cross-env ELECTRON_RUN_AS_NODE=1 electron ./node_modules/vitest/vitest.mjs run",
-    "package:win": "npm run build && electron-builder --win"
+    "package:win": "npm run build && electron-builder --win",
+    "package:mac": "npm run build && electron-builder --mac",
+    "package:mac:arm64": "npm run build && electron-builder --mac --arm64",
+    "package:mac:x64": "npm run build && electron-builder --mac --x64"
   },
   "build": {
     "appId": "com.pulsedeck.player",
@@ -33,7 +36,28 @@
         "nsis",
         "portable"
       ],
-      "icon": "resources/icon.svg"
+      "icon": "resources/icon.png"
+    },
+    "mac": {
+      "category": "public.app-category.music",
+      "icon": "resources/icon.png",
+      "artifactName": "${productName}-${version}-mac-${arch}.${ext}",
+      "target": [
+        {
+          "target": "dmg",
+          "arch": [
+            "arm64",
+            "x64"
+          ]
+        },
+        {
+          "target": "zip",
+          "arch": [
+            "arm64",
+            "x64"
+          ]
+        }
+      ]
     }
   },
   "dependencies": {

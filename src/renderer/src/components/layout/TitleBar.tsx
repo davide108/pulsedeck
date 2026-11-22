@@ -13,6 +13,7 @@ import {
 } from 'lucide-react'
 import { useLibraryStore } from '@/store/useLibraryStore'
 import { usePlayerStore } from '@/store/usePlayerStore'
+import { getModKeyLabel, isMacPlatform } from '@/utils/format'
 
 export function TitleBar() {
   const activeView = useLibraryStore((s) => s.activeView)
@@ -32,6 +33,8 @@ export function TitleBar() {
   const closeWindow = usePlayerStore((s) => s.closeWindow)
 
   const searchInputRef = useRef<HTMLInputElement>(null)
+  const isMac = isMacPlatform()
+  const modKey = getModKeyLabel()
 
   useEffect(() => {
     if (focusSearchNonce > 0) {
@@ -59,8 +62,8 @@ export function TitleBar() {
 
   return (
     <header className="drag-region flex h-11 shrink-0 items-center justify-between border-b border-white/[0.07] bg-obsidian/90 px-3 select-none backdrop-blur-xl">
-      {/* Brand */}
-      <div className="flex items-center gap-2.5 pl-1">
+      {/* Brand (extra left pad on macOS to clear native traffic-light controls) */}
+      <div className={`flex items-center gap-2.5 ${isMac ? 'pl-[76px]' : 'pl-1'}`}>
         <div className="flex h-7 w-7 items-center justify-center rounded-lg bg-gradient-to-br from-accent to-accentGlow text-white shadow-glow">
           <Disc3 className="h-4 w-4" />
         </div>
@@ -145,7 +148,7 @@ export function TitleBar() {
         <button
           type="button"
           onClick={() => setView(activeView === 'settings' ? 'tracks' : 'settings')}
-          title="Settings (Ctrl+,)"
+          title={`Settings (${modKey}+,)`}
           aria-label="Open Settings"
           className={`flex h-7 w-7 items-center justify-center rounded-lg transition-colors ${
             activeView === 'settings'
@@ -165,34 +168,38 @@ export function TitleBar() {
           <PictureInPicture2 className="h-3.5 w-3.5" />
         </button>
 
-        <div className="mx-1 h-4 w-px bg-white/10" />
+        {!isMac && (
+          <>
+            <div className="mx-1 h-4 w-px bg-white/10" />
 
-        <button
-          type="button"
-          onClick={minimizeWindow}
-          aria-label="Minimize window"
-          className="flex h-7 w-8 items-center justify-center rounded-md text-slate-400 hover:bg-white/10 hover:text-white transition-colors"
-        >
-          <Minus className="h-3.5 w-3.5" />
-        </button>
+            <button
+              type="button"
+              onClick={minimizeWindow}
+              aria-label="Minimize window"
+              className="flex h-7 w-8 items-center justify-center rounded-md text-slate-400 hover:bg-white/10 hover:text-white transition-colors"
+            >
+              <Minus className="h-3.5 w-3.5" />
+            </button>
 
-        <button
-          type="button"
-          onClick={toggleMaximizeWindow}
-          aria-label={isMaximized ? 'Restore window' : 'Maximize window'}
-          className="flex h-7 w-8 items-center justify-center rounded-md text-slate-400 hover:bg-white/10 hover:text-white transition-colors"
-        >
-          {isMaximized ? <Copy className="h-3 w-3" /> : <Square className="h-3 w-3" />}
-        </button>
+            <button
+              type="button"
+              onClick={toggleMaximizeWindow}
+              aria-label={isMaximized ? 'Restore window' : 'Maximize window'}
+              className="flex h-7 w-8 items-center justify-center rounded-md text-slate-400 hover:bg-white/10 hover:text-white transition-colors"
+            >
+              {isMaximized ? <Copy className="h-3 w-3" /> : <Square className="h-3 w-3" />}
+            </button>
 
-        <button
-          type="button"
-          onClick={closeWindow}
-          aria-label="Close window"
-          className="flex h-7 w-8 items-center justify-center rounded-md text-slate-400 hover:bg-rose-500/80 hover:text-white transition-colors"
-        >
-          <X className="h-3.5 w-3.5" />
-        </button>
+            <button
+              type="button"
+              onClick={closeWindow}
+              aria-label="Close window"
+              className="flex h-7 w-8 items-center justify-center rounded-md text-slate-400 hover:bg-rose-500/80 hover:text-white transition-colors"
+            >
+              <X className="h-3.5 w-3.5" />
+            </button>
+          </>
+        )}
       </div>
     </header>
   )

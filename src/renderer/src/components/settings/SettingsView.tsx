@@ -20,6 +20,7 @@ import {
 } from 'lucide-react'
 import { useLibraryStore } from '@/store/useLibraryStore'
 import { usePlayerStore } from '@/store/usePlayerStore'
+import { getModKeyLabel } from '@/utils/format'
 import {
   ACCENT_PRESETS,
   type AutoDjScope,
@@ -36,21 +37,24 @@ const MIX_STYLES: Array<{ id: MixStyle; label: string; hint: string }> = [
   { id: 'quick-cut', label: 'Quick Cut', hint: 'Crisp 0.5s DJ transition' }
 ]
 
-const SHORTCUTS: Array<{ keys: string; desc: string }> = [
-  { keys: 'Space', desc: 'Play / Pause' },
-  { keys: 'S', desc: 'Toggle Shuffle (Random)' },
-  { keys: 'R', desc: 'Cycle Repeat (Off / All / One)' },
-  { keys: 'D', desc: 'Toggle Auto-Mix' },
-  { keys: 'L', desc: 'Toggle Lyrics view' },
-  { keys: 'I', desc: 'Track Info & Edit Metadata' },
-  { keys: 'M', desc: 'Mute / Unmute audio' },
-  { keys: '← / →', desc: 'Seek backward / forward (Shift = 3x)' },
-  { keys: '↑ / ↓', desc: 'Volume up / down (±5%)' },
-  { keys: 'F / Ctrl+F', desc: 'Focus library search' },
-  { keys: 'Ctrl + ,', desc: 'Open Settings' },
-  { keys: 'Esc', desc: 'Close Now Playing overlay' },
-  { keys: 'Media Keys', desc: 'OS Play/Pause, Next, Previous, Stop' }
-]
+function getShortcutsList(): Array<{ keys: string; desc: string }> {
+  const mod = getModKeyLabel()
+  return [
+    { keys: 'Space', desc: 'Play / Pause' },
+    { keys: 'S', desc: 'Toggle Shuffle (Random)' },
+    { keys: 'R', desc: 'Cycle Repeat (Off / All / One)' },
+    { keys: 'D', desc: 'Toggle Auto-Mix' },
+    { keys: 'L', desc: 'Toggle Lyrics view' },
+    { keys: 'I', desc: 'Track Info & Edit Metadata' },
+    { keys: 'M', desc: 'Mute / Unmute audio' },
+    { keys: '← / →', desc: 'Seek backward / forward (Shift = 3x)' },
+    { keys: '↑ / ↓', desc: 'Volume up / down (±5%)' },
+    { keys: `F / ${mod}+F`, desc: 'Focus library search' },
+    { keys: `${mod} + ,`, desc: 'Open Settings' },
+    { keys: 'Esc', desc: 'Close Now Playing overlay' },
+    { keys: 'Media Keys', desc: 'OS Play/Pause, Next, Previous, Stop' }
+  ]
+}
 
 function ToggleSwitch({
   checked,
@@ -837,7 +841,7 @@ export function SettingsView() {
           subtitle="Quick reference for global media keys and keyboard controls."
         >
           <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
-            {SHORTCUTS.map((item) => (
+            {getShortcutsList().map((item) => (
               <div
                 key={item.keys}
                 className="flex items-center justify-between rounded-xl border border-white/[0.06] bg-white/[0.025] px-3 py-2 text-xs"

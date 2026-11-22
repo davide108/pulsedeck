@@ -3,6 +3,8 @@ import {
   app,
   BrowserWindow,
   globalShortcut,
+  Menu,
+  type MenuItemConstructorOptions,
   type Rectangle,
   screen
 } from 'electron'
@@ -156,7 +158,71 @@ function persistCurrentBounds(repos: Repositories): void {
   } satisfies PersistedWindowBounds)
 }
 
+function setupApplicationMenu(): void {
+  if (process.platform !== 'darwin') return
+
+  const viewSubmenu: MenuItemConstructorOptions[] = [
+    { role: 'togglefullscreen' }
+  ]
+  if (!app.isPackaged) {
+    viewSubmenu.unshift(
+      { role: 'reload' },
+      { role: 'forceReload' },
+      { role: 'toggleDevTools' },
+      { type: 'separator' }
+    )
+  }
+
+  const template: MenuItemConstructorOptions[] = [
+    {
+      label: app.name,
+      submenu: [
+        { role: 'about' },
+        { type: 'separator' },
+        { role: 'services' },
+        { type: 'separator' },
+        { role: 'hide' },
+        { role: 'hideOthers' },
+        { role: 'unhide' },
+        { type: 'separator' },
+        { role: 'quit' }
+      ]
+    },
+    {
+      label: 'Edit',
+      submenu: [
+        { role: 'undo' },
+        { role: 'redo' },
+        { type: 'separator' },
+        { role: 'cut' },
+        { role: 'copy' },
+        { role: 'paste' },
+        { role: 'selectAll' }
+      ]
+    },
+    {
+      label: 'View',
+      submenu: viewSubmenu
+    },
+    {
+      label: 'Window',
+      submenu: [
+        { role: 'minimize' },
+        { role: 'zoom' },
+        { type: 'separator' },
+        { role: 'front' },
+        { role: 'close' }
+      ]
+    }
+  ]
+
+  Menu.setApplicationMenu(Menu.buildFromTemplate(template))
+}
+
 function registerMediaShortcuts(): void {
+  // On macOS, navigator.mediaSession handles hardware media keys natively without requiring Accessibility permission.
+  if (process.platform === 'darwin') return
+
   const bindings: Array<[string, MediaCommand]> = [
     ['MediaPlayPause', 'play-pause'],
     ['MediaNextTrack', 'next'],
@@ -180,6 +246,8 @@ function createWindow(repos: Repositories): BrowserWindow {
   const { bounds, isMaximized } = validateWindowBounds(saved)
   restoreBounds = { ...bounds }
 
+  const isMac = process.platform === 'darwin'
+
   const win = new BrowserWindow({
     x: bounds.x,
     y: bounds.y,
@@ -187,7 +255,12 @@ function createWindow(repos: Repositories): BrowserWindow {
     height: bounds.height,
     minWidth: MIN_WIDTH,
     minHeight: MIN_HEIGHT,
-    frame: false,
+    ...(isMac
+      ? {
+          titleBarStyle: 'hiddenInset' as const,
+          trafficLightPosition: { x: 14, y: 14 }
+        }
+      : { frame: false }),
     backgroundColor: '#090A0F',
     show: false,
     title: 'PulseDeck',
@@ -335,6 +408,9 @@ if (gotSingleInstanceLock) {
           }
 
           isMiniPlayer = true
+          if (process.platform === 'darwin') {
+            mainWindow.setWindowButtonVisibility(false)
+          }
           mainWindow.setMinimumSize(MINI_WIDTH, MINI_HEIGHT)
           mainWindow.setResizable(false)
           mainWindow.setMaximizable(false)
@@ -357,6 +433,9 @@ if (gotSingleInstanceLock) {
         }
 
         isMiniPlayer = false
+        if (process.platform === 'darwin') {
+          mainWindow.setWindowButtonVisibility(true)
+        }
         mainWindow.setAlwaysOnTop(false)
         mainWindow.setMaximizable(true)
         mainWindow.setResizable(true)
@@ -393,6 +472,7 @@ if (gotSingleInstanceLock) {
       scheduleTracksChanged
     })
 
+    setupApplicationMenu()
     mainWindow = createWindow(repos)
     registerMediaShortcuts()
 

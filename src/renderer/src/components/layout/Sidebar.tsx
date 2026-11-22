@@ -18,6 +18,7 @@ import {
 } from 'lucide-react'
 import { useLibraryStore } from '@/store/useLibraryStore'
 import { usePlayerStore } from '@/store/usePlayerStore'
+import { getModKeyLabel } from '@/utils/format'
 
 export function Sidebar() {
   const activeView = useLibraryStore((s) => s.activeView)
@@ -358,7 +359,7 @@ export function Sidebar() {
         <button
           type="button"
           onClick={() => setView('settings')}
-          title="Settings (Ctrl+,)"
+          title={`Settings (${getModKeyLabel()}+,)`}
           className={navItemClass(activeView === 'settings')}
         >
           <Settings className="h-4 w-4 shrink-0" />
