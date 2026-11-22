@@ -8,6 +8,10 @@ import { createRepositories, type TrackUpsertInput } from '../src/main/db/reposi
 
 type StorageMode = 'memory' | 'disk'
 
+function musicPath(...segments: string[]): string {
+  return path.join(path.sep, 'Music', ...segments)
+}
+
 function makeTrackInput(
   folderId: number,
   suffix: string,
@@ -15,7 +19,7 @@ function makeTrackInput(
 ): TrackUpsertInput {
   return {
     folderId,
-    filePath: `C:\\Music\\${suffix}.mp3`,
+    filePath: musicPath(`${suffix}.mp3`),
     fileSize: 4_096_000,
     fileMtime: 1_700_000_000_000,
     format: 'mp3',
@@ -84,8 +88,8 @@ describe('database & repositories', () => {
     it('performs folder CRUD and filters tracks/facets/pending by folder active state', () => {
       const { repos } = openTestDb(mode)
 
-      const folderA = repos.folders.add('C:\\Music\\FolderA', 'Folder A')
-      const folderB = repos.folders.add('C:\\Music\\FolderB')
+      const folderA = repos.folders.add(musicPath('FolderA'), 'Folder A')
+      const folderB = repos.folders.add(musicPath('FolderB'))
       expect(folderA.name).toBe('Folder A')
       expect(folderA.isActive).toBe(true)
       expect(folderB.name).toBe('FolderB')
@@ -121,12 +125,12 @@ describe('database & repositories', () => {
       // Removing a folder cascades to its tracks
       repos.folders.remove(folderA.id)
       expect(repos.folders.getById(folderA.id)).toBeNull()
-      expect(repos.tracks.getByFilePath('C:\\Music\\a1.mp3')).toBeNull()
+      expect(repos.tracks.getByFilePath(musicPath('a1.mp3'))).toBeNull()
     })
 
     it('batch upserts tracks and preserves analyzed fields & playCount when mtime+size are unchanged', () => {
       const { repos } = openTestDb(mode)
-      const folder = repos.folders.add('C:\\Music\\Library')
+      const folder = repos.folders.add(musicPath('Library'))
 
       const initialResult = repos.tracks.upsertBatch([
         makeTrackInput(folder.id, 'preserve', {
@@ -137,7 +141,7 @@ describe('database & repositories', () => {
       ])
       expect(initialResult).toEqual({ added: 1, updated: 0, skipped: 0 })
 
-      const inserted = repos.tracks.getByFilePath('C:\\Music\\preserve.mp3')!
+      const inserted = repos.tracks.getByFilePath(musicPath('preserve.mp3'))!
       expect(inserted.analysisStatus).toBe('pending')
 
       repos.tracks.saveAnalysis({
@@ -198,7 +202,7 @@ describe('database & repositories', () => {
 
     it('supports multi-criteria filtering (search, genre, BPM range, Camelot key) and facets', () => {
       const { repos } = openTestDb(mode)
-      const folder = repos.folders.add('C:\\Music\\FilterSet')
+      const folder = repos.folders.add(musicPath('FilterSet'))
 
       repos.tracks.upsertBatch([
         makeTrackInput(folder.id, 't1', {
@@ -271,7 +275,7 @@ describe('database & repositories', () => {
 
     it('implements smart views: recently_added, most_played, and high_energy', () => {
       const { db, repos } = openTestDb(mode)
-      const folder = repos.folders.add('C:\\Music\\Smart')
+      const folder = repos.folders.add(musicPath('Smart'))
 
       repos.tracks.upsertBatch([
         makeTrackInput(folder.id, 's1', { title: 'Chill Opener', bpm: 100 }),
@@ -279,9 +283,9 @@ describe('database & repositories', () => {
         makeTrackInput(folder.id, 's3', { title: 'Club Roller', bpm: 126 })
       ])
 
-      const s1 = repos.tracks.getByFilePath('C:\\Music\\s1.mp3')!
-      const s2 = repos.tracks.getByFilePath('C:\\Music\\s2.mp3')!
-      const s3 = repos.tracks.getByFilePath('C:\\Music\\s3.mp3')!
+      const s1 = repos.tracks.getByFilePath(musicPath('s1.mp3'))!
+      const s2 = repos.tracks.getByFilePath(musicPath('s2.mp3'))!
+      const s3 = repos.tracks.getByFilePath(musicPath('s3.mp3'))!
 
       // Ensure explicit added_at ordering differences
       db.prepare('UPDATE tracks SET added_at = ? WHERE id = ?').run(1000, s1.id)
@@ -363,7 +367,7 @@ describe('database & repositories', () => {
 
     it('handles playlist CRUD, reordering, and querying tracks in playlist position order', () => {
       const { repos } = openTestDb(mode)
-      const folder = repos.folders.add('C:\\Music\\Playlists')
+      const folder = repos.folders.add(musicPath('Playlists'))
 
       repos.tracks.upsertBatch([
         makeTrackInput(folder.id, 'p1', { title: 'First' }),
@@ -371,9 +375,9 @@ describe('database & repositories', () => {
         makeTrackInput(folder.id, 'p3', { title: 'Third' })
       ])
 
-      const t1 = repos.tracks.getByFilePath('C:\\Music\\p1.mp3')!
-      const t2 = repos.tracks.getByFilePath('C:\\Music\\p2.mp3')!
-      const t3 = repos.tracks.getByFilePath('C:\\Music\\p3.mp3')!
+      const t1 = repos.tracks.getByFilePath(musicPath('p1.mp3'))!
+      const t2 = repos.tracks.getByFilePath(musicPath('p2.mp3'))!
+      const t3 = repos.tracks.getByFilePath(musicPath('p3.mp3'))!
 
       const created = repos.playlists.create('Late Night Set', 'Warmup to peak')
       expect(created.name).toBe('Late Night Set')
@@ -417,15 +421,15 @@ describe('database & repositories', () => {
 
     it('increments play_count on history.recordPlay and handles is_missing tracks properly', () => {
       const { repos } = openTestDb(mode)
-      const folder = repos.folders.add('C:\\Music\\HistoryAndMissing')
+      const folder = repos.folders.add(musicPath('HistoryAndMissing'))
 
       repos.tracks.upsertBatch([
         makeTrackInput(folder.id, 'h1', { title: 'Present Track' }),
         makeTrackInput(folder.id, 'h2', { title: 'Vanishing Track' })
       ])
 
-      const t1 = repos.tracks.getByFilePath('C:\\Music\\h1.mp3')!
-      const t2 = repos.tracks.getByFilePath('C:\\Music\\h2.mp3')!
+      const t1 = repos.tracks.getByFilePath(musicPath('h1.mp3'))!
+      const t2 = repos.tracks.getByFilePath(musicPath('h2.mp3'))!
 
       const h1 = repos.history.recordPlay({
         trackId: t1.id,
@@ -531,7 +535,7 @@ describe('database & repositories', () => {
 
     it('updates track metadata, normalizes Camelot key, preserves custom edits across rescans, and restores file tags via applyFileMetadata', () => {
       const { repos } = openTestDb(mode)
-      const folder = repos.folders.add('C:\\Music\\MetadataEdit')
+      const folder = repos.folders.add(musicPath('MetadataEdit'))
 
       repos.tracks.upsertBatch([
         makeTrackInput(folder.id, 'edit1', {
@@ -549,7 +553,7 @@ describe('database & repositories', () => {
         })
       ])
 
-      const track = repos.tracks.getByFilePath('C:\\Music\\edit1.mp3')!
+      const track = repos.tracks.getByFilePath(musicPath('edit1.mp3'))!
       expect(track.metadataEditedAt).toBeNull()
 
       const edited = repos.tracks.updateMetadata(track.id, {
@@ -683,10 +687,10 @@ describe('database & repositories', () => {
 
     it('performs lyrics CRUD, clamps offsetMs to -15000..15000, and cascades delete on track removal', () => {
       const { repos } = openTestDb(mode)
-      const folder = repos.folders.add('C:\\Music\\LyricsCrud')
+      const folder = repos.folders.add(musicPath('LyricsCrud'))
 
       repos.tracks.upsertBatch([makeTrackInput(folder.id, 'lyr1', { title: 'Lyric Track' })])
-      const track = repos.tracks.getByFilePath('C:\\Music\\lyr1.mp3')!
+      const track = repos.tracks.getByFilePath(musicPath('lyr1.mp3'))!
 
       expect(repos.lyrics.get(track.id)).toBeNull()
       expect(repos.lyrics.updateOffset(track.id, 500)).toBeNull()
