@@ -1381,7 +1381,11 @@ export function createRepositories(db: Database.Database) {
         sidebarCollapsed:
           typeof parsed.sidebarCollapsed === 'boolean'
             ? parsed.sidebarCollapsed
-            : DEFAULT_APP_SETTINGS.sidebarCollapsed
+            : DEFAULT_APP_SETTINGS.sidebarCollapsed,
+        autoCheckUpdates:
+          typeof parsed.autoCheckUpdates === 'boolean'
+            ? parsed.autoCheckUpdates
+            : DEFAULT_APP_SETTINGS.autoCheckUpdates
       }
     },
 

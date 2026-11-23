@@ -6,10 +6,16 @@ import {
   Menu,
   type MenuItemConstructorOptions,
   type Rectangle,
-  screen
+  screen,
+  shell
 } from 'electron'
 import { IPC_CHANNELS } from '../shared/ipc'
-import type { MediaCommand, ScanProgressEvent, WindowStateEvent } from '../shared/types'
+import type {
+  MediaCommand,
+  ScanProgressEvent,
+  UpdateState,
+  WindowStateEvent
+} from '../shared/types'
 import { createDatabase } from './db/database'
 import { createRepositories, type Repositories } from './db/repositories'
 import { registerIpcHandlers, type WindowController } from './ipcHandlers'
@@ -18,6 +24,7 @@ import { registerMediaProtocol, registerMediaScheme } from './protocol'
 import { createArtworkCache } from './scanner/artworkCache'
 import { createFolderScanner, type FolderScanner } from './scanner/folderScanner'
 import { createFolderWatcher, type FolderWatcher } from './scanner/folderWatcher'
+import { createUpdateService } from './updater/updateService'
 
 const DEFAULT_WIDTH = 1360
 const DEFAULT_HEIGHT = 860
@@ -344,6 +351,14 @@ if (gotSingleInstanceLock) {
     const repos = createRepositories(db)
     const artworkCache = createArtworkCache(userDataDir)
     const lyricsService = createLyricsService({ repos })
+    const updateService = createUpdateService({
+      currentVersion: app.getVersion(),
+      isPackaged: app.isPackaged,
+      onStateChange: (state: UpdateState) => {
+        sendToRenderer(IPC_CHANNELS.EVENT_UPDATE_STATE, state)
+      },
+      openExternal: (url: string) => shell.openExternal(url)
+    })
 
     registerMediaProtocol(repos, artworkCache)
 
@@ -466,6 +481,7 @@ if (gotSingleInstanceLock) {
       watcher,
       artworkCache,
       lyricsService,
+      updateService,
       getMainWindow: () => mainWindow,
       windowController,
       emitTracksChanged,
@@ -479,6 +495,14 @@ if (gotSingleInstanceLock) {
     await watcher.syncFolders(repos.folders.list())
     void scanner.scanAllActive()
 
+    let startupUpdateTimer: ReturnType<typeof setTimeout> | null = null
+    if (app.isPackaged && repos.settings.getAll().autoCheckUpdates) {
+      startupUpdateTimer = setTimeout(() => {
+        startupUpdateTimer = null
+        void updateService.checkForUpdates()
+      }, 5000)
+    }
+
     app.on('activate', () => {
       if (BrowserWindow.getAllWindows().length === 0) {
         mainWindow = createWindow(repos)
@@ -490,6 +514,10 @@ if (gotSingleInstanceLock) {
       if (cleanedUp) return
       cleanedUp = true
       globalShortcut.unregisterAll()
+      if (startupUpdateTimer) {
+        clearTimeout(startupUpdateTimer)
+        startupUpdateTimer = null
+      }
       if (boundsSaveTimer) {
         clearTimeout(boundsSaveTimer)
         boundsSaveTimer = null

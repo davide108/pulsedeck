@@ -19,7 +19,8 @@ import {
   type DeckId,
   type LibrarySettings,
   type RepeatMode,
-  type TrackRecord
+  type TrackRecord,
+  type UpdateState
 } from '@shared/types'
 
 export type NowPlayingTab = 'visualizer' | 'lyrics' | 'decks'
@@ -101,6 +102,8 @@ interface PlayerState {
   appearanceSettings: AppearanceSettings
   librarySettings: LibrarySettings
   sidebarCollapsed: boolean
+  autoCheckUpdates: boolean
+  updateState: UpdateState | null
   isMaximized: boolean
   isMiniPlayer: boolean
   nowPlayingOpen: boolean
@@ -145,6 +148,11 @@ interface PlayerState {
   setDeckEq: (deckId: DeckId, band: keyof DeckEqState, gainDb: number) => void
 
   setSidebarCollapsed: (collapsed: boolean) => void
+  setAutoCheckUpdates: (enabled: boolean) => void
+  checkForUpdates: () => Promise<void>
+  downloadUpdate: () => Promise<void>
+  installUpdate: () => Promise<void>
+  openUpdateReleasePage: () => Promise<void>
   setNowPlayingOpen: (open: boolean, tab?: NowPlayingTab) => void
   setNowPlayingTab: (tab: NowPlayingTab) => void
   setMiniPlayer: (enabled: boolean) => Promise<void>
@@ -213,6 +221,8 @@ export const usePlayerStore = create<PlayerState>((set, get) => {
     appearanceSettings: { ...DEFAULT_APPEARANCE_SETTINGS },
     librarySettings: { ...DEFAULT_LIBRARY_SETTINGS },
     sidebarCollapsed: DEFAULT_APP_SETTINGS.sidebarCollapsed,
+    autoCheckUpdates: DEFAULT_APP_SETTINGS.autoCheckUpdates,
+    updateState: null,
     isMaximized: false,
     isMiniPlayer: false,
     nowPlayingOpen: false,
@@ -263,7 +273,8 @@ export const usePlayerStore = create<PlayerState>((set, get) => {
         audioSettings: settings.audio,
         appearanceSettings: settings.appearance,
         librarySettings: settings.library,
-        sidebarCollapsed: settings.sidebarCollapsed
+        sidebarCollapsed: settings.sidebarCollapsed,
+        autoCheckUpdates: settings.autoCheckUpdates
       })
 
       const cachedTracks = get().libraryTracks
@@ -328,6 +339,30 @@ export const usePlayerStore = create<PlayerState>((set, get) => {
         })
       })
 
+      window.api.updater
+        .getState()
+        .then((updateState) => set({ updateState }))
+        .catch(() => {})
+
+      const unsubUpdater = window.api.events.onUpdateState((nextUpdate) => {
+        const prevStatus = get().updateState?.status
+        set({ updateState: nextUpdate })
+
+        if (nextUpdate.status === 'available' && prevStatus !== 'available') {
+          get().pushToast({
+            type: 'info',
+            title: `Update Available (v${nextUpdate.latestVersion ?? ''})`,
+            message: 'Open Settings to download and install the latest PulseDeck release.'
+          })
+        } else if (nextUpdate.status === 'downloaded' && prevStatus !== 'downloaded') {
+          get().pushToast({
+            type: 'info',
+            title: 'Update Ready to Install',
+            message: `PulseDeck v${nextUpdate.latestVersion ?? ''} downloaded. Restart from Settings to install.`
+          })
+        }
+      })
+
       return () => {
         stopTelemetryLoop()
         if (volumePersistTimer) {
@@ -342,6 +377,7 @@ export const usePlayerStore = create<PlayerState>((set, get) => {
         unsubActive()
         unsubAnalysis()
         unsubWin()
+        unsubUpdater()
         if (scheduler === nextScheduler) {
           nextScheduler.dispose()
           scheduler = null
@@ -659,7 +695,8 @@ export const usePlayerStore = create<PlayerState>((set, get) => {
         audioSettings: { ...defaults.audio },
         appearanceSettings: { ...defaults.appearance },
         librarySettings: { ...defaults.library },
-        sidebarCollapsed: defaults.sidebarCollapsed
+        sidebarCollapsed: defaults.sidebarCollapsed,
+        autoCheckUpdates: defaults.autoCheckUpdates
       })
       syncTelemetryOnce()
 
@@ -672,7 +709,8 @@ export const usePlayerStore = create<PlayerState>((set, get) => {
         window.api.settings.set('audio', defaults.audio),
         window.api.settings.set('appearance', defaults.appearance),
         window.api.settings.set('library', defaults.library),
-        window.api.settings.set('sidebarCollapsed', defaults.sidebarCollapsed)
+        window.api.settings.set('sidebarCollapsed', defaults.sidebarCollapsed),
+        window.api.settings.set('autoCheckUpdates', defaults.autoCheckUpdates)
       ]).catch(() => {})
     },
 
@@ -700,6 +738,60 @@ export const usePlayerStore = create<PlayerState>((set, get) => {
     setSidebarCollapsed: (collapsed) => {
       set({ sidebarCollapsed: collapsed })
       void window.api.settings.set('sidebarCollapsed', collapsed).catch(() => {})
+    },
+
+    setAutoCheckUpdates: (enabled) => {
+      set({ autoCheckUpdates: enabled })
+      void window.api.settings.set('autoCheckUpdates', enabled).catch(() => {})
+    },
+
+    checkForUpdates: async () => {
+      try {
+        const next = await window.api.updater.checkForUpdates()
+        set({ updateState: next })
+      } catch (err) {
+        const message = err instanceof Error ? err.message : 'Unable to check for updates.'
+        get().pushToast({
+          type: 'error',
+          title: 'Update Check Failed',
+          message
+        })
+      }
+    },
+
+    downloadUpdate: async () => {
+      try {
+        const next = await window.api.updater.downloadUpdate()
+        set({ updateState: next })
+      } catch (err) {
+        const message = err instanceof Error ? err.message : 'Unable to download update.'
+        get().pushToast({
+          type: 'error',
+          title: 'Update Download Failed',
+          message
+        })
+      }
+    },
+
+    installUpdate: async () => {
+      try {
+        await window.api.updater.quitAndInstall()
+      } catch (err) {
+        const message = err instanceof Error ? err.message : 'Unable to install update.'
+        get().pushToast({
+          type: 'error',
+          title: 'Update Install Failed',
+          message
+        })
+      }
+    },
+
+    openUpdateReleasePage: async () => {
+      try {
+        await window.api.updater.openReleasePage()
+      } catch {
+        // Ignore external browser errors
+      }
     },
 
     setNowPlayingOpen: (open, tab) => {

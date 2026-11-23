@@ -10,6 +10,7 @@ import type {
   TrackAnalysisPayload,
   TrackMetadataUpdateInput,
   TrackQueryFilter,
+  UpdateState,
   WindowStateEvent
 } from '../shared/types'
 
@@ -92,6 +93,14 @@ const api: IpcApi = {
     isMaximized: () => ipcRenderer.invoke(IPC_CHANNELS.WINDOW_IS_MAXIMIZED)
   },
 
+  updater: {
+    getState: () => ipcRenderer.invoke(IPC_CHANNELS.UPDATER_GET_STATE),
+    checkForUpdates: () => ipcRenderer.invoke(IPC_CHANNELS.UPDATER_CHECK),
+    downloadUpdate: () => ipcRenderer.invoke(IPC_CHANNELS.UPDATER_DOWNLOAD),
+    quitAndInstall: () => ipcRenderer.invoke(IPC_CHANNELS.UPDATER_INSTALL),
+    openReleasePage: () => ipcRenderer.invoke(IPC_CHANNELS.UPDATER_OPEN_RELEASE_PAGE)
+  },
+
   events: {
     onScanProgress: (callback: (event: ScanProgressEvent) => void) => {
       const listener = (_event: IpcRendererEvent, payload: ScanProgressEvent): void => {
@@ -130,6 +139,16 @@ const api: IpcApi = {
       ipcRenderer.on(IPC_CHANNELS.EVENT_WINDOW_STATE_CHANGED, listener)
       return () => {
         ipcRenderer.removeListener(IPC_CHANNELS.EVENT_WINDOW_STATE_CHANGED, listener)
+      }
+    },
+
+    onUpdateState: (callback: (state: UpdateState) => void) => {
+      const listener = (_event: IpcRendererEvent, state: UpdateState): void => {
+        callback(state)
+      }
+      ipcRenderer.on(IPC_CHANNELS.EVENT_UPDATE_STATE, listener)
+      return () => {
+        ipcRenderer.removeListener(IPC_CHANNELS.EVENT_UPDATE_STATE, listener)
       }
     }
   }

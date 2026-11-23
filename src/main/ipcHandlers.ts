@@ -17,6 +17,7 @@ import type { ArtworkCache } from './scanner/artworkCache'
 import type { FolderScanner } from './scanner/folderScanner'
 import type { FolderWatcher } from './scanner/folderWatcher'
 import { extractTrackMetadata, inspectTrackFile } from './scanner/metadata'
+import type { UpdateService } from './updater/updateService'
 
 const MAX_LYRICS_IMPORT_BYTES = 1024 * 1024
 const MAX_ARTWORK_IMPORT_BYTES = 20 * 1024 * 1024
@@ -35,6 +36,7 @@ export interface IpcHandlerDeps {
   watcher: FolderWatcher
   artworkCache: ArtworkCache
   lyricsService: LyricsService
+  updateService: UpdateService
   getMainWindow: () => BrowserWindow | null
   windowController: WindowController
   emitTracksChanged: () => void
@@ -51,6 +53,7 @@ export function registerIpcHandlers(deps: IpcHandlerDeps): void {
     watcher,
     artworkCache,
     lyricsService,
+    updateService,
     getMainWindow,
     windowController,
     emitTracksChanged,
@@ -339,4 +342,10 @@ export function registerIpcHandlers(deps: IpcHandlerDeps): void {
   })
 
   ipcMain.handle(IPC_CHANNELS.WINDOW_IS_MAXIMIZED, () => windowController.isMaximized())
+
+  ipcMain.handle(IPC_CHANNELS.UPDATER_GET_STATE, () => updateService.getState())
+  ipcMain.handle(IPC_CHANNELS.UPDATER_CHECK, () => updateService.checkForUpdates())
+  ipcMain.handle(IPC_CHANNELS.UPDATER_DOWNLOAD, () => updateService.downloadUpdate())
+  ipcMain.handle(IPC_CHANNELS.UPDATER_INSTALL, () => updateService.quitAndInstall())
+  ipcMain.handle(IPC_CHANNELS.UPDATER_OPEN_RELEASE_PAGE, () => updateService.openReleasePage())
 }

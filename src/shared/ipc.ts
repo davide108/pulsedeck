@@ -15,6 +15,7 @@ import type {
   TrackQueryFilter,
   TrackRecord,
   TrackTechnicalInfo,
+  UpdateState,
   WindowStateEvent
 } from './types'
 
@@ -63,10 +64,17 @@ export const IPC_CHANNELS = {
   WINDOW_SET_MINI_PLAYER: 'window:setMiniPlayer',
   WINDOW_IS_MAXIMIZED: 'window:isMaximized',
 
+  UPDATER_GET_STATE: 'updater:getState',
+  UPDATER_CHECK: 'updater:check',
+  UPDATER_DOWNLOAD: 'updater:download',
+  UPDATER_INSTALL: 'updater:install',
+  UPDATER_OPEN_RELEASE_PAGE: 'updater:openReleasePage',
+
   EVENT_SCAN_PROGRESS: 'library:scanProgress',
   EVENT_TRACKS_CHANGED: 'library:tracksChanged',
   EVENT_MEDIA_COMMAND: 'media:command',
-  EVENT_WINDOW_STATE_CHANGED: 'window:stateChanged'
+  EVENT_WINDOW_STATE_CHANGED: 'window:stateChanged',
+  EVENT_UPDATE_STATE: 'updater:stateChanged'
 } as const
 
 export type IpcChannel = (typeof IPC_CHANNELS)[keyof typeof IPC_CHANNELS]
@@ -128,10 +136,18 @@ export interface IpcApi {
     setMiniPlayer: (enabled: boolean) => Promise<void>
     isMaximized: () => Promise<boolean>
   }
+  updater: {
+    getState: () => Promise<UpdateState>
+    checkForUpdates: () => Promise<UpdateState>
+    downloadUpdate: () => Promise<UpdateState>
+    quitAndInstall: () => Promise<void>
+    openReleasePage: () => Promise<void>
+  }
   events: {
     onScanProgress: (callback: (event: ScanProgressEvent) => void) => () => void
     onTracksChanged: (callback: () => void) => () => void
     onMediaCommand: (callback: (command: MediaCommand) => void) => () => void
     onWindowStateChanged: (callback: (state: WindowStateEvent) => void) => () => void
+    onUpdateState: (callback: (state: UpdateState) => void) => () => void
   }
 }

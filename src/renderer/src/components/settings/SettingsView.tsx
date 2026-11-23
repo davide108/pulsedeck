@@ -1,9 +1,14 @@
 import { useState, type ReactNode } from 'react'
 import {
   Activity,
+  AlertCircle,
   Check,
+  CheckCircle2,
+  Download,
+  ExternalLink,
   FolderCog,
   Keyboard,
+  Loader2,
   Palette,
   Play,
   Pause,
@@ -15,6 +20,7 @@ import {
   Settings,
   Shuffle,
   Sliders,
+  Sparkles,
   Volume2,
   VolumeX
 } from 'lucide-react'
@@ -146,6 +152,8 @@ export function SettingsView() {
   const volume = usePlayerStore((s) => s.volume)
   const muted = usePlayerStore((s) => s.muted)
   const sidebarCollapsed = usePlayerStore((s) => s.sidebarCollapsed)
+  const autoCheckUpdates = usePlayerStore((s) => s.autoCheckUpdates)
+  const updateState = usePlayerStore((s) => s.updateState)
   const autoDjConfig = usePlayerStore((s) => s.autoDjConfig)
   const audioSettings = usePlayerStore((s) => s.audioSettings)
   const appearanceSettings = usePlayerStore((s) => s.appearanceSettings)
@@ -157,6 +165,11 @@ export function SettingsView() {
   const setVolume = usePlayerStore((s) => s.setVolume)
   const toggleMute = usePlayerStore((s) => s.toggleMute)
   const setSidebarCollapsed = usePlayerStore((s) => s.setSidebarCollapsed)
+  const setAutoCheckUpdates = usePlayerStore((s) => s.setAutoCheckUpdates)
+  const checkForUpdates = usePlayerStore((s) => s.checkForUpdates)
+  const downloadUpdate = usePlayerStore((s) => s.downloadUpdate)
+  const installUpdate = usePlayerStore((s) => s.installUpdate)
+  const openUpdateReleasePage = usePlayerStore((s) => s.openUpdateReleasePage)
   const updateAutoDjConfig = usePlayerStore((s) => s.updateAutoDjConfig)
   const updateAudioSettings = usePlayerStore((s) => s.updateAudioSettings)
   const updateAppearanceSettings = usePlayerStore((s) => s.updateAppearanceSettings)
@@ -212,6 +225,18 @@ export function SettingsView() {
     { id: 'one', label: 'Repeat One', icon: <Repeat1 className="h-3.5 w-3.5" /> }
   ]
 
+  const formatBytes = (bytes: number): string => {
+    if (!Number.isFinite(bytes) || bytes <= 0) return '0 B'
+    if (bytes >= 1024 * 1024) return `${(bytes / (1024 * 1024)).toFixed(1)} MB`
+    if (bytes >= 1024) return `${(bytes / 1024).toFixed(0)} KB`
+    return `${Math.round(bytes)} B`
+  }
+
+  const updateStatus = updateState?.status ?? 'idle'
+  const isCheckingUpdate = updateStatus === 'checking'
+  const isDownloadingUpdate = updateStatus === 'downloading'
+  const currentVersion = updateState?.currentVersion ?? '1.1.0'
+
   return (
     <div className="flex-1 overflow-y-auto px-6 py-6">
       <div className="mx-auto max-w-4xl space-y-5 pb-8">
@@ -224,22 +249,169 @@ export function SettingsView() {
             <div>
               <h1 className="text-xl font-bold tracking-tight text-white">Settings</h1>
               <p className="text-xs text-slate-400">
-                Configure playback behavior, Auto-Mix DJ transitions, audio DSP, library analysis, and appearance.
+                Configure software updates, playback behavior, Auto-Mix DJ transitions, audio DSP, and appearance.
               </p>
             </div>
           </div>
 
-          <span
-            className={`inline-flex items-center gap-1.5 rounded-full border px-3 py-1 text-[11px] font-semibold ${
-              autoDjConfig.enabled
-                ? 'border-accent/45 bg-accent/20 text-accentGlow'
-                : 'border-white/10 bg-white/[0.04] text-slate-300'
-            }`}
-          >
-            <Radio className={`h-3.5 w-3.5 ${autoDjConfig.enabled ? 'animate-pulse' : ''}`} />
-            <span>{autoDjConfig.enabled ? 'Auto-Mix Enabled' : 'Normal Sequential Mode'}</span>
-          </span>
+          <div className="flex items-center gap-2">
+            <span className="inline-flex items-center rounded-full border border-white/10 bg-white/[0.04] px-2.5 py-1 font-mono text-[11px] font-semibold text-slate-300">
+              v{currentVersion}
+            </span>
+            <span
+              className={`inline-flex items-center gap-1.5 rounded-full border px-3 py-1 text-[11px] font-semibold ${
+                autoDjConfig.enabled
+                  ? 'border-accent/45 bg-accent/20 text-accentGlow'
+                  : 'border-white/10 bg-white/[0.04] text-slate-300'
+              }`}
+            >
+              <Radio className={`h-3.5 w-3.5 ${autoDjConfig.enabled ? 'animate-pulse' : ''}`} />
+              <span>{autoDjConfig.enabled ? 'Auto-Mix Enabled' : 'Normal Sequential Mode'}</span>
+            </span>
+          </div>
         </div>
+
+        {/* Software Updates */}
+        <SettingsSection
+          icon={<Download className="h-4 w-4" />}
+          title="Software Updates"
+          subtitle="Check GitHub Releases for new versions of PulseDeck and install updates automatically."
+        >
+          <div className="flex flex-wrap items-center justify-between gap-4 rounded-xl border border-white/[0.07] bg-white/[0.025] px-4 py-3">
+            <div className="min-w-0 flex-1 space-y-1">
+              <div className="flex flex-wrap items-center gap-2">
+                <span className="text-xs font-semibold text-white">
+                  PulseDeck v{currentVersion}
+                </span>
+
+                {updateStatus === 'not-available' && (
+                  <span className="inline-flex items-center gap-1 rounded-full border border-emerald-500/35 bg-emerald-500/15 px-2 py-0.5 text-[10px] font-semibold text-emerald-300">
+                    <CheckCircle2 className="h-3 w-3" />
+                    Up to date
+                  </span>
+                )}
+                {updateStatus === 'available' && (
+                  <span className="inline-flex items-center gap-1 rounded-full border border-accent/45 bg-accent/20 px-2 py-0.5 text-[10px] font-semibold text-accentGlow">
+                    <Sparkles className="h-3 w-3" />
+                    v{updateState?.latestVersion} available
+                  </span>
+                )}
+                {updateStatus === 'downloaded' && (
+                  <span className="inline-flex items-center gap-1 rounded-full border border-emerald-500/45 bg-emerald-500/20 px-2 py-0.5 text-[10px] font-semibold text-emerald-300">
+                    <CheckCircle2 className="h-3 w-3" />
+                    Ready to install
+                  </span>
+                )}
+                {updateStatus === 'error' && (
+                  <span className="inline-flex items-center gap-1 rounded-full border border-rose-500/40 bg-rose-500/15 px-2 py-0.5 text-[10px] font-semibold text-rose-300">
+                    <AlertCircle className="h-3 w-3" />
+                    Check failed
+                  </span>
+                )}
+              </div>
+
+              <p className="text-[11px] text-slate-400">
+                {updateStatus === 'checking' && 'Checking GitHub Releases for a newer version…'}
+                {updateStatus === 'idle' &&
+                  'Checks github.com/davide108/pulsedeck for the latest release.'}
+                {updateStatus === 'not-available' &&
+                  `You are running the latest release${updateState?.checkedAt ? ` (checked ${new Date(updateState.checkedAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })})` : ''}.`}
+                {updateStatus === 'available' &&
+                  (updateState?.canAutoInstall
+                    ? `${updateState.releaseName || `PulseDeck v${updateState.latestVersion}`} is ready to download and install automatically.`
+                    : `${updateState?.releaseName || `PulseDeck v${updateState?.latestVersion}`} is available on GitHub Releases.`)}
+                {updateStatus === 'downloading' &&
+                  `Downloading v${updateState?.latestVersion ?? ''}… ${Math.round(updateState?.downloadPercent ?? 0)}% (${formatBytes(updateState?.transferredBytes ?? 0)} / ${formatBytes(updateState?.totalBytes ?? 0)}${updateState?.bytesPerSecond ? ` · ${formatBytes(updateState.bytesPerSecond)}/s` : ''})`}
+                {updateStatus === 'downloaded' &&
+                  `PulseDeck v${updateState?.latestVersion ?? ''} has been downloaded. Restart now to finish installing.`}
+                {updateStatus === 'error' && (updateState?.error || 'Could not reach GitHub Releases.')}
+              </p>
+            </div>
+
+            <div className="flex flex-wrap items-center gap-2">
+              {updateStatus === 'downloaded' ? (
+                <button
+                  type="button"
+                  onClick={() => void installUpdate()}
+                  className="inline-flex h-8 items-center gap-1.5 rounded-xl bg-accent px-3.5 text-xs font-semibold text-white shadow-glow transition hover:brightness-110"
+                >
+                  <RotateCcw className="h-3.5 w-3.5" />
+                  <span>Restart &amp; Install</span>
+                </button>
+              ) : updateStatus === 'available' ? (
+                <button
+                  type="button"
+                  onClick={() => void downloadUpdate()}
+                  className="inline-flex h-8 items-center gap-1.5 rounded-xl bg-accent px-3.5 text-xs font-semibold text-white shadow-glow transition hover:brightness-110"
+                >
+                  {updateState?.canAutoInstall ? (
+                    <>
+                      <Download className="h-3.5 w-3.5" />
+                      <span>Download &amp; Install</span>
+                    </>
+                  ) : (
+                    <>
+                      <ExternalLink className="h-3.5 w-3.5" />
+                      <span>Download Update</span>
+                    </>
+                  )}
+                </button>
+              ) : null}
+
+              <button
+                type="button"
+                disabled={isCheckingUpdate || isDownloadingUpdate}
+                onClick={() => void checkForUpdates()}
+                className="inline-flex h-8 items-center gap-1.5 rounded-xl border border-white/10 bg-white/[0.06] px-3 text-xs font-semibold text-slate-100 transition hover:bg-white/10 disabled:cursor-not-allowed disabled:opacity-50"
+              >
+                {isCheckingUpdate ? (
+                  <Loader2 className="h-3.5 w-3.5 animate-spin text-accentGlow" />
+                ) : (
+                  <RefreshCw className="h-3.5 w-3.5 text-accentGlow" />
+                )}
+                <span>{isCheckingUpdate ? 'Checking…' : 'Check for Updates'}</span>
+              </button>
+
+              <button
+                type="button"
+                onClick={() => void openUpdateReleasePage()}
+                title="Open GitHub Releases page"
+                className="inline-flex h-8 items-center gap-1 rounded-xl border border-white/10 bg-white/[0.04] px-2.5 text-xs text-slate-300 transition hover:bg-white/10 hover:text-white"
+              >
+                <ExternalLink className="h-3.5 w-3.5" />
+              </button>
+            </div>
+          </div>
+
+          {isDownloadingUpdate && (
+            <div className="space-y-1.5">
+              <div className="h-2 w-full overflow-hidden rounded-full bg-white/10">
+                <div
+                  className="h-full rounded-full bg-gradient-to-r from-accent to-accentGlow transition-all duration-200"
+                  style={{ width: `${Math.max(2, Math.min(100, updateState?.downloadPercent ?? 0))}%` }}
+                />
+              </div>
+            </div>
+          )}
+
+          {updateState?.releaseNotes && (updateStatus === 'available' || updateStatus === 'downloaded') && (
+            <div className="max-h-28 overflow-y-auto rounded-xl border border-white/[0.06] bg-black/25 px-3.5 py-2.5 text-[11px] leading-relaxed text-slate-300 whitespace-pre-wrap">
+              {updateState.releaseNotes}
+            </div>
+          )}
+
+          <SettingRow
+            title="Check for Updates Automatically on Startup"
+            description="Quietly check GitHub Releases in the background when PulseDeck launches."
+            control={
+              <ToggleSwitch
+                checked={autoCheckUpdates}
+                onChange={setAutoCheckUpdates}
+                label="Toggle automatic startup update checks"
+              />
+            }
+          />
+        </SettingsSection>
 
         {/* 1. Playback & Transport */}
         <SettingsSection

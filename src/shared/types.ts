@@ -354,6 +354,33 @@ export interface AppSettings {
   appearance: AppearanceSettings
   library: LibrarySettings
   sidebarCollapsed: boolean
+  autoCheckUpdates: boolean
+}
+
+export type UpdateStatus =
+  | 'idle'
+  | 'checking'
+  | 'available'
+  | 'not-available'
+  | 'downloading'
+  | 'downloaded'
+  | 'error'
+
+export interface UpdateState {
+  status: UpdateStatus
+  currentVersion: string
+  latestVersion: string | null
+  releaseName: string | null
+  releaseDate: string | null
+  releaseNotes: string | null
+  releaseUrl: string | null
+  downloadPercent: number
+  bytesPerSecond: number
+  transferredBytes: number
+  totalBytes: number
+  canAutoInstall: boolean
+  checkedAt: number | null
+  error: string | null
 }
 
 export interface WindowStateEvent {
@@ -401,7 +428,8 @@ export const DEFAULT_APP_SETTINGS: AppSettings = {
   audio: DEFAULT_AUDIO_SETTINGS,
   appearance: DEFAULT_APPEARANCE_SETTINGS,
   library: DEFAULT_LIBRARY_SETTINGS,
-  sidebarCollapsed: false
+  sidebarCollapsed: false,
+  autoCheckUpdates: true
 }
 
 export const DEFAULT_THEME_PALETTE: ThemePalette = {

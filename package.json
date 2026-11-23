@@ -1,6 +1,6 @@
 {
   "name": "pulsedeck",
-  "version": "1.0.0",
+  "version": "1.1.0",
   "productName": "PulseDeck",
   "description": "PulseDeck - Dark glassmorphic desktop music player with Auto-DJ transitions",
   "main": "./out/main/index.js",
@@ -31,12 +31,25 @@
       "out/**",
       "resources/**"
     ],
+    "publish": [
+      {
+        "provider": "github",
+        "owner": "davide108",
+        "repo": "pulsedeck"
+      }
+    ],
     "win": {
       "target": [
         "nsis",
         "portable"
       ],
       "icon": "resources/icon.png"
+    },
+    "nsis": {
+      "artifactName": "${productName}-Setup-${version}.${ext}"
+    },
+    "portable": {
+      "artifactName": "${productName}-${version}-portable.${ext}"
     },
     "mac": {
       "category": "public.app-category.music",
@@ -52,6 +65,7 @@
     "@tanstack/react-virtual": "^3.14.28",
     "better-sqlite3": "12.11.1",
     "chokidar": "^4.0.3",
+    "electron-updater": "^6.8.11",
     "lucide-react": "^1.77.0",
     "music-metadata": "^12.8.0",
     "zustand": "^5.1.0"
