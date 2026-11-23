@@ -11,7 +11,6 @@ import {
   Shuffle,
   SkipBack,
   SkipForward,
-  Sliders,
   Volume1,
   Volume2,
   VolumeX,
@@ -127,9 +126,12 @@ export function PlayerBar() {
             {tr.active && (
               <button
                 type="button"
-                onClick={() => setNowPlayingOpen(true, 'decks')}
+                onClick={() => {
+                  useLibraryStore.getState().setView('autodj')
+                  setNowPlayingOpen(false)
+                }}
                 className="inline-flex items-center gap-1.5 rounded-full border border-accentGlow/40 bg-accentGlow/15 px-2.5 py-0.5 text-[10px] font-semibold text-accentGlow animate-pulse"
-                title="Inspect live Dual-Deck mix"
+                title="Open DJ Booth"
               >
                 <span className="h-1.5 w-1.5 rounded-full bg-accentGlow" />
                 <span>
@@ -259,7 +261,7 @@ export function PlayerBar() {
         </div>
       </div>
 
-      {/* Right: Auto-Mix, Volume, Lyrics / DJ View / Expand */}
+      {/* Right: Auto-Mix, Volume, Lyrics / Expand */}
       <div className="flex w-[26%] min-w-[250px] items-center justify-end gap-2">
         <button
           type="button"
@@ -307,15 +309,6 @@ export function PlayerBar() {
           className="flex h-8 w-8 shrink-0 items-center justify-center rounded-xl border border-white/10 bg-white/[0.04] text-slate-300 hover:border-accent/40 hover:bg-accent/15 hover:text-white transition-colors"
         >
           <Mic2 className="h-4 w-4" />
-        </button>
-
-        <button
-          type="button"
-          onClick={() => setNowPlayingOpen(true, 'decks')}
-          title="Open Dual-Deck DJ View"
-          className="flex h-8 w-8 shrink-0 items-center justify-center rounded-xl border border-white/10 bg-white/[0.04] text-slate-300 hover:border-accent/40 hover:bg-accent/15 hover:text-white transition-colors"
-        >
-          <Sliders className="h-4 w-4" />
         </button>
 
         <button

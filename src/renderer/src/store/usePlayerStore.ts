@@ -17,13 +17,15 @@ import {
   type AutoDjQueueItem,
   type DeckEqState,
   type DeckId,
+  type DeckTelemetry,
   type LibrarySettings,
+  type LoopBeats,
   type RepeatMode,
   type TrackRecord,
   type UpdateState
 } from '@shared/types'
 
-export type NowPlayingTab = 'visualizer' | 'lyrics' | 'decks'
+export type NowPlayingTab = 'visualizer' | 'lyrics'
 
 export interface ToastMessage {
   id: string
@@ -34,6 +36,7 @@ export interface ToastMessage {
 
 const EMPTY_TELEMETRY: EngineTelemetrySnapshot = {
   activeDeckId: 'A',
+  crossfader: 0,
   decks: {
     A: {
       deckId: 'A',
@@ -44,7 +47,15 @@ const EMPTY_TELEMETRY: EngineTelemetrySnapshot = {
       playbackRate: 1,
       crossfadeGain: 1,
       normalizationGain: 1,
-      eq: { low: 0, mid: 0, high: 0 }
+      channelGain: 1,
+      eq: { low: 0, mid: 0, high: 0 },
+      eqKill: { low: false, mid: false, high: false },
+      filterValue: 0,
+      cuePointSec: 0,
+      loopEnabled: false,
+      loopBeats: 8,
+      loopStartSec: null,
+      loopEndSec: null
     },
     B: {
       deckId: 'B',
@@ -55,7 +66,15 @@ const EMPTY_TELEMETRY: EngineTelemetrySnapshot = {
       playbackRate: 1,
       crossfadeGain: 0,
       normalizationGain: 1,
-      eq: { low: 0, mid: 0, high: 0 }
+      channelGain: 1,
+      eq: { low: 0, mid: 0, high: 0 },
+      eqKill: { low: false, mid: false, high: false },
+      filterValue: 0,
+      cuePointSec: 0,
+      loopEnabled: false,
+      loopBeats: 8,
+      loopStartSec: null,
+      loopEndSec: null
     }
   },
   transition: {
@@ -145,7 +164,28 @@ interface PlayerState {
   reorderQueue: (fromIndex: number, toIndex: number) => void
   removeFromQueue: (index: number) => void
   rerollQueue: () => void
+  addTrackToAutoDjQueue: (track: TrackRecord) => void
   setDeckEq: (deckId: DeckId, band: keyof DeckEqState, gainDb: number) => void
+  loadTrackToDeck: (
+    deckId: DeckId,
+    track: TrackRecord,
+    options?: { autoplay?: boolean }
+  ) => Promise<void>
+  unloadDeck: (deckId: DeckId) => void
+  toggleDeckPlayPause: (deckId: DeckId) => Promise<void>
+  seekDeck: (deckId: DeckId, timeSec: number) => void
+  setDeckPlaybackRate: (deckId: DeckId, rate: number) => void
+  nudgeDeckPlaybackRate: (deckId: DeckId, delta: number) => void
+  syncDeckBpm: (deckId: DeckId) => void
+  setDeckCuePoint: (deckId: DeckId, sec?: number) => void
+  jumpToDeckCue: (deckId: DeckId) => void
+  toggleDeckLoop: (deckId: DeckId, beats?: LoopBeats) => void
+  setDeckLoopBeats: (deckId: DeckId, beats: LoopBeats) => void
+  setDeckChannelGain: (deckId: DeckId, gain: number) => void
+  setDeckFilter: (deckId: DeckId, value: number) => void
+  toggleDeckEqKill: (deckId: DeckId, band: keyof DeckEqState) => void
+  resetDeckEq: (deckId: DeckId) => void
+  setCrossfader: (position: number) => void
 
   setSidebarCollapsed: (collapsed: boolean) => void
   setAutoCheckUpdates: (enabled: boolean) => void
@@ -176,21 +216,37 @@ export const usePlayerStore = create<PlayerState>((set, get) => {
   const syncTelemetryOnce = (): boolean => {
     if (!engine) return false
     const snap = engine.getTelemetry()
-    const activeDeck = snap.decks[snap.activeDeckId]
-    const activeRunning =
-      activeDeck.status === 'playing' ||
-      activeDeck.status === 'fading-in' ||
-      activeDeck.status === 'fading-out' ||
-      activeDeck.status === 'loading' ||
-      snap.transition.active
+    const isRunningStatus = (status: DeckTelemetry['status']): boolean =>
+      status === 'playing' ||
+      status === 'fading-in' ||
+      status === 'fading-out' ||
+      status === 'loading'
+    const isPlayingStatus = (status: DeckTelemetry['status']): boolean =>
+      status === 'playing' || status === 'fading-in' || status === 'fading-out'
 
-    const nextIsPlaying =
-      activeDeck.status === 'idle' || activeDeck.status === 'paused'
-        ? false
-        : get().isPlaying
+    const deckA = snap.decks.A
+    const deckB = snap.decks.B
+    const anyDeckRunning =
+      isRunningStatus(deckA.status) || isRunningStatus(deckB.status) || snap.transition.active
+    const anyDeckPlaying = isPlayingStatus(deckA.status) || isPlayingStatus(deckB.status)
+    const anyDeckLoading = deckA.status === 'loading' || deckB.status === 'loading'
 
-    set({ telemetry: snap, isPlaying: nextIsPlaying })
-    return activeRunning && (nextIsPlaying || activeDeck.status === 'loading')
+    const nextIsPlaying = anyDeckPlaying
+      ? true
+      : anyDeckLoading
+        ? get().isPlaying
+        : false
+
+    const activeDeckTrack = snap.decks[snap.activeDeckId].track
+    const nextActiveTrack =
+      activeDeckTrack !== null
+        ? activeDeckTrack
+        : deckA.track === null && deckB.track === null
+          ? null
+          : get().activeTrack
+
+    set({ telemetry: snap, isPlaying: nextIsPlaying, activeTrack: nextActiveTrack })
+    return anyDeckRunning
   }
 
   const ensureTelemetryLoop = () => {
@@ -463,13 +519,15 @@ export const usePlayerStore = create<PlayerState>((set, get) => {
 
       if (get().isPlaying && (activeDeck.status === 'playing' || activeDeck.status === 'fading-in')) {
         await engine.pause()
-        set({ isPlaying: false })
-        syncTelemetryOnce()
-        stopTelemetryLoop()
+        const stillRunning = syncTelemetryOnce()
+        if (!stillRunning) {
+          set({ isPlaying: false })
+          stopTelemetryLoop()
+        }
         return
       }
 
-      if (activeDeck.track && (activeDeck.status === 'paused' || snap.transition.active)) {
+      if (activeDeck.track && (activeDeck.status === 'paused' || activeDeck.status === 'idle' || snap.transition.active)) {
         await engine.resume()
         set({ isPlaying: true })
         syncTelemetryOnce()
@@ -487,18 +545,22 @@ export const usePlayerStore = create<PlayerState>((set, get) => {
     pausePlayback: async () => {
       if (!engine) return
       await engine.pause()
-      set({ isPlaying: false })
-      syncTelemetryOnce()
-      stopTelemetryLoop()
+      const stillRunning = syncTelemetryOnce()
+      if (!stillRunning) {
+        set({ isPlaying: false })
+        stopTelemetryLoop()
+      }
     },
 
     stopPlayback: async () => {
       if (!engine) return
       await engine.pause()
       engine.seek(0)
-      set({ isPlaying: false })
-      syncTelemetryOnce()
-      stopTelemetryLoop()
+      const stillRunning = syncTelemetryOnce()
+      if (!stillRunning) {
+        set({ isPlaying: false })
+        stopTelemetryLoop()
+      }
     },
 
     skipNext: async () => {
@@ -730,9 +792,149 @@ export const usePlayerStore = create<PlayerState>((set, get) => {
       scheduler?.rerollQueue()
     },
 
+    addTrackToAutoDjQueue: (track) => {
+      scheduler?.addTrackToQueue(track)
+    },
+
     setDeckEq: (deckId, band, gainDb) => {
       engine?.setDeckEq(deckId, band, gainDb)
       syncTelemetryOnce()
+    },
+
+    loadTrackToDeck: async (deckId, track, options) => {
+      if (!engine) return
+      // Push immediate loading state into telemetry and start RAF loop if needed
+      const ok = await engine.loadTrackToDeck(deckId, track, options)
+      const keepRunning = syncTelemetryOnce()
+      if (ok) {
+        const snap = engine.getTelemetry()
+        const activeDeckTrack = snap.decks[snap.activeDeckId].track
+        if (activeDeckTrack) {
+          scheduler?.syncManualActiveTrack(activeDeckTrack)
+        }
+      }
+      if (keepRunning) {
+        ensureTelemetryLoop()
+      }
+    },
+
+    unloadDeck: (deckId) => {
+      if (!engine) return
+      engine.unloadDeck(deckId)
+      const keepRunning = syncTelemetryOnce()
+      const snap = engine.getTelemetry()
+      scheduler?.syncManualActiveTrack(snap.decks[snap.activeDeckId].track)
+      if (!keepRunning) {
+        stopTelemetryLoop()
+      }
+    },
+
+    toggleDeckPlayPause: async (deckId) => {
+      if (!engine) return
+      await engine.toggleDeckPlayPause(deckId)
+      const keepRunning = syncTelemetryOnce()
+      const snap = engine.getTelemetry()
+      const activeDeckTrack = snap.decks[snap.activeDeckId].track
+      if (activeDeckTrack) {
+        scheduler?.syncManualActiveTrack(activeDeckTrack)
+      }
+      if (keepRunning) {
+        ensureTelemetryLoop()
+      } else {
+        stopTelemetryLoop()
+      }
+    },
+
+    seekDeck: (deckId, timeSec) => {
+      if (!engine) return
+      engine.seekDeck(deckId, timeSec)
+      syncTelemetryOnce()
+    },
+
+    setDeckPlaybackRate: (deckId, rate) => {
+      if (!engine) return
+      engine.setDeckPlaybackRate(deckId, rate)
+      syncTelemetryOnce()
+    },
+
+    nudgeDeckPlaybackRate: (deckId, delta) => {
+      if (!engine) return
+      engine.nudgeDeckPlaybackRate(deckId, delta)
+      syncTelemetryOnce()
+    },
+
+    syncDeckBpm: (deckId) => {
+      if (!engine) return
+      engine.syncDeckBpm(deckId)
+      syncTelemetryOnce()
+    },
+
+    setDeckCuePoint: (deckId, sec) => {
+      if (!engine) return
+      engine.setDeckCuePoint(deckId, sec)
+      syncTelemetryOnce()
+    },
+
+    jumpToDeckCue: (deckId) => {
+      if (!engine) return
+      engine.jumpToDeckCue(deckId)
+      syncTelemetryOnce()
+    },
+
+    toggleDeckLoop: (deckId, beats) => {
+      if (!engine) return
+      const current = engine.getTelemetry().decks[deckId]
+      const nextEnabled =
+        beats !== undefined && current.loopEnabled && current.loopBeats !== beats
+          ? true
+          : !current.loopEnabled
+      engine.setDeckLoop(deckId, nextEnabled, beats)
+      syncTelemetryOnce()
+    },
+
+    setDeckLoopBeats: (deckId, beats) => {
+      if (!engine) return
+      engine.setDeckLoopBeats(deckId, beats)
+      syncTelemetryOnce()
+    },
+
+    setDeckChannelGain: (deckId, gain) => {
+      if (!engine) return
+      engine.setDeckChannelGain(deckId, gain)
+      syncTelemetryOnce()
+    },
+
+    setDeckFilter: (deckId, value) => {
+      if (!engine) return
+      engine.setDeckFilter(deckId, value)
+      syncTelemetryOnce()
+    },
+
+    toggleDeckEqKill: (deckId, band) => {
+      if (!engine) return
+      const current = engine.getTelemetry().decks[deckId]
+      engine.setDeckEqKill(deckId, band, !current.eqKill[band])
+      syncTelemetryOnce()
+    },
+
+    resetDeckEq: (deckId) => {
+      if (!engine) return
+      engine.resetDeckEq(deckId)
+      syncTelemetryOnce()
+    },
+
+    setCrossfader: (position) => {
+      if (!engine) return
+      engine.setManualCrossfader(position)
+      const keepRunning = syncTelemetryOnce()
+      const snap = engine.getTelemetry()
+      const activeDeckTrack = snap.decks[snap.activeDeckId].track
+      if (activeDeckTrack) {
+        scheduler?.syncManualActiveTrack(activeDeckTrack)
+      }
+      if (keepRunning) {
+        ensureTelemetryLoop()
+      }
     },
 
     setSidebarCollapsed: (collapsed) => {

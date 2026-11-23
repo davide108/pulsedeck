@@ -10,8 +10,8 @@ import {
   ListMusic,
   Music2,
   Plus,
-  Radio,
   Settings,
+  Sliders,
   Sparkles,
   TrendingUp,
   Users
@@ -37,6 +37,7 @@ export function Sidebar() {
   const setSidebarCollapsed = usePlayerStore((s) => s.setSidebarCollapsed)
   const autoDjEnabled = usePlayerStore((s) => s.autoDjConfig.enabled)
   const autoDjQueueCount = usePlayerStore((s) => s.autoDjQueue.length)
+  const transitionActive = usePlayerStore((s) => s.telemetry.transition.active)
 
   const [creatingPlaylist, setCreatingPlaylist] = useState(false)
   const [newPlaylistName, setNewPlaylistName] = useState('')
@@ -188,22 +189,50 @@ export function Sidebar() {
           </button>
         </div>
 
-        {/* Auto-DJ Queue Tab */}
+        {/* DJ Booth Tab */}
         {renderSectionTitle('DJ Engine')}
         <button
           type="button"
-          onClick={() => setView('autodj')}
-          title="Auto-DJ Queue"
+          onClick={() => {
+            setView('autodj')
+            usePlayerStore.getState().setNowPlayingOpen(false)
+          }}
+          title="DJ Booth"
           className={navItemClass(activeView === 'autodj')}
         >
-          <Radio
-            className={`h-4 w-4 shrink-0 ${
-              autoDjEnabled ? 'text-accentGlow animate-pulse' : ''
-            }`}
-          />
+          <span className="relative flex shrink-0 items-center justify-center">
+            <Sliders
+              className={`h-4 w-4 ${
+                transitionActive || autoDjEnabled ? 'text-accentGlow' : ''
+              }`}
+            />
+            {sidebarCollapsed && (transitionActive || autoDjEnabled) && (
+              <span className="absolute -top-0.5 -right-0.5 flex h-2 w-2">
+                <span
+                  className={`absolute inline-flex h-full w-full rounded-full bg-accentGlow opacity-75 ${
+                    transitionActive ? 'animate-ping' : 'animate-pulse'
+                  }`}
+                />
+                <span className="relative inline-flex h-2 w-2 rounded-full bg-accentGlow shadow-glow" />
+              </span>
+            )}
+          </span>
           {!sidebarCollapsed && (
             <>
-              <span className="flex-1 truncate text-left">Auto-Mix Queue</span>
+              <span className="flex-1 truncate text-left">DJ Booth</span>
+              {(transitionActive || autoDjEnabled) && (
+                <span
+                  className="relative flex h-2 w-2 shrink-0"
+                  title={transitionActive ? 'Live transition active' : 'Auto-Mix enabled'}
+                >
+                  <span
+                    className={`absolute inline-flex h-full w-full rounded-full bg-accentGlow opacity-75 ${
+                      transitionActive ? 'animate-ping' : 'animate-pulse'
+                    }`}
+                  />
+                  <span className="relative inline-flex h-2 w-2 rounded-full bg-accentGlow shadow-glow" />
+                </span>
+              )}
               <span className="rounded-full bg-white/[0.08] px-1.5 py-0.5 font-mono text-[10px] tabular-nums text-slate-300">
                 {autoDjQueueCount}
               </span>

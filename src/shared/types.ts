@@ -225,6 +225,14 @@ export interface DeckEqState {
   high: number
 }
 
+export interface DeckEqKillState {
+  low: boolean
+  mid: boolean
+  high: boolean
+}
+
+export type LoopBeats = 4 | 8 | 16
+
 export interface DeckTelemetry {
   deckId: DeckId
   track: TrackRecord | null
@@ -234,7 +242,15 @@ export interface DeckTelemetry {
   playbackRate: number
   crossfadeGain: number
   normalizationGain: number
+  channelGain: number
   eq: DeckEqState
+  eqKill: DeckEqKillState
+  filterValue: number
+  cuePointSec: number
+  loopEnabled: boolean
+  loopBeats: LoopBeats
+  loopStartSec: number | null
+  loopEndSec: number | null
 }
 
 export interface TransitionTelemetry {
@@ -436,4 +452,114 @@ export const DEFAULT_THEME_PALETTE: ThemePalette = {
   accentRgb: '99 102 241',
   accentGlowRgb: '56 189 248',
   isDefault: true
+}
+
+function clampNumeric(value: number, min: number, max: number): number {
+  return Math.max(min, Math.min(max, value))
+}
+
+export function computeSyncRate(
+  sourceBpm: number | null,
+  targetBpm: number | null,
+  maxShiftPct = 12
+): number {
+  if (
+    sourceBpm === null ||
+    targetBpm === null ||
+    !Number.isFinite(sourceBpm) ||
+    !Number.isFinite(targetBpm) ||
+    sourceBpm <= 0 ||
+    targetBpm <= 0
+  ) {
+    return 1
+  }
+
+  const multiples = [1, 0.5, 2]
+  let bestRate = 1
+  let bestWeightedDiff = Infinity
+
+  for (const mult of multiples) {
+    const candidateRate = (targetBpm * mult) / sourceBpm
+    // Slight tie-breaker preference for direct 1x match
+    const weightedDiff = Math.abs(candidateRate - 1) + (mult === 1 ? 0 : 1e-6)
+    if (weightedDiff < bestWeightedDiff) {
+      bestWeightedDiff = weightedDiff
+      bestRate = candidateRate
+    }
+  }
+
+  const safeMaxShift = Number.isFinite(maxShiftPct) ? Math.max(0, maxShiftPct) / 100 : 0.12
+  const minRate = Math.max(0.05, 1 - safeMaxShift)
+  const maxRate = 1 + safeMaxShift
+  return Number(clampNumeric(bestRate, minRate, maxRate).toFixed(4))
+}
+
+export function computeLoopWindow(
+  anchorSec: number,
+  bpm: number | null,
+  beats: number,
+  duration: number
+): { startSec: number; endSec: number } {
+  if (!Number.isFinite(duration) || duration <= 0) {
+    return { startSec: 0, endSec: 0 }
+  }
+
+  const safeBeats = Number.isFinite(beats) && beats > 0 ? beats : 8
+  const beatSec =
+    bpm !== null && Number.isFinite(bpm) && bpm > 0 ? 60 / bpm : 0.5
+  const rawLoopLen = beatSec * safeBeats
+  const loopLen = Math.min(rawLoopLen, duration)
+
+  const rawAnchor = Number.isFinite(anchorSec) ? anchorSec : 0
+  const maxStart = Math.max(0, duration - loopLen)
+  const startSec = clampNumeric(rawAnchor, 0, maxStart)
+  const endSec = clampNumeric(startSec + loopLen, startSec, duration)
+
+  return {
+    startSec: Number(startSec.toFixed(4)),
+    endSec: Number(endSec.toFixed(4))
+  }
+}
+
+export function mapFilterValueToBiquad(value: number): {
+  type: 'lowpass' | 'highpass' | 'allpass'
+  frequency: number
+  q: number
+} {
+  const v = clampNumeric(Number.isFinite(value) ? value : 0, -1, 1)
+  if (Math.abs(v) < 0.02) {
+    return { type: 'allpass', frequency: 1000, q: 0.707 }
+  }
+
+  const q = Number((0.707 + Math.abs(v) * 2.3).toFixed(3))
+  if (v < 0) {
+    // -1 -> 120 Hz, 0 -> 18000 Hz (smooth log-scale sweep)
+    const t = 1 + v
+    const frequency = 120 * Math.pow(18000 / 120, t)
+    return {
+      type: 'lowpass',
+      frequency: Number(frequency.toFixed(1)),
+      q
+    }
+  }
+
+  // 0 -> 60 Hz, +1 -> 8000 Hz (smooth log-scale sweep)
+  const frequency = 60 * Math.pow(8000 / 60, v)
+  return {
+    type: 'highpass',
+    frequency: Number(frequency.toFixed(1)),
+    q
+  }
+}
+
+export function computeEqualPowerCrossfadeGains(position: number): {
+  gainA: number
+  gainB: number
+} {
+  const pos = clampNumeric(Number.isFinite(position) ? position : 0.5, 0, 1)
+  const rawA = Math.cos(pos * Math.PI * 0.5)
+  const rawB = Math.sin(pos * Math.PI * 0.5)
+  const gainA = rawA < 1e-6 ? 0 : Number(rawA.toFixed(6))
+  const gainB = rawB < 1e-6 ? 0 : Number(rawB.toFixed(6))
+  return { gainA, gainB }
 }

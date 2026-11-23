@@ -3,6 +3,8 @@ import {
   generateAutoDjQueue,
   reanchorSession,
   recordEarlySkip,
+  scoreCandidate,
+  trackToAnchor,
   type AutoDjSessionState
 } from '../../../shared/autoDjEngine'
 import {
@@ -432,6 +434,73 @@ export class TransitionScheduler {
     this.regenerateQueue(false)
   }
 
+  addTrackToQueue(track: TrackRecord): void {
+    if (this.disposed || track.isMissing) return
+
+    // Avoid duplicates: if already locked in queue, keep its slot intact
+    const existingIdx = this.queue.findIndex((item) => item.track.id === track.id)
+    if (existingIdx !== -1 && this.queue[existingIdx].locked) {
+      return
+    }
+
+    const deduped =
+      existingIdx !== -1
+        ? this.queue.filter((item) => item.track.id !== track.id)
+        : [...this.queue]
+
+    // Insert at next slot (0) if slot 0 is unlocked, or after the locked prefix (appending if all locked)
+    let insertIdx = 0
+    if (deduped.length > 0 && deduped[0].locked) {
+      while (insertIdx < deduped.length && deduped[insertIdx].locked) {
+        insertIdx++
+      }
+    }
+
+    const anchorSource =
+      insertIdx > 0
+        ? deduped[insertIdx - 1].track
+        : (this.activeTrack ?? this.session.anchor)
+    const breakdown = scoreCandidate(trackToAnchor(anchorSource), track, this.session)
+
+    const queuedItem: AutoDjQueueItem = {
+      track,
+      locked: true,
+      score: clamp(breakdown.total, 0, 1),
+      bpmScore: breakdown.bpmScore,
+      harmonicScore: breakdown.harmonicScore,
+      flowScore: breakdown.flowScore,
+      matchReason: breakdown.matchReason,
+      tempoRelation: breakdown.tempoRelation,
+      harmonicRelation: breakdown.harmonicRelation
+    }
+
+    deduped.splice(insertIdx, 0, queuedItem)
+
+    // Keep all locked items while bounding unlocked suggestions to QUEUE_TARGET_COUNT
+    const lockedCount = deduped.filter((item) => item.locked).length
+    const maxLen = Math.max(QUEUE_TARGET_COUNT, lockedCount)
+    this.queue = deduped.slice(0, maxLen)
+
+    if (insertIdx === 0) {
+      this.preloadedTrackId = null
+    }
+    this.emitQueue()
+  }
+
+  syncManualActiveTrack(track: TrackRecord | null): void {
+    if (this.disposed) return
+    if (track?.id === this.activeTrack?.id) return
+    this.activeTrack = track
+    this.activeSource = 'manual'
+    this.activePlayedSec = 0
+    this.lastTickTimestampMs = track ? Date.now() : 0
+    this.preloadedTrackId = null
+    if (track) {
+      this.session = reanchorSession(this.session, track)
+    }
+    this.emitActiveTrack()
+  }
+
   private shiftTopAndRegenerate(
     playedTrack: TrackRecord,
     deterministic = true
@@ -786,6 +855,22 @@ export class TransitionScheduler {
     const playedSec = Math.max(this.getCurrentPlayedSeconds(), endedTrack.duration || 0)
     this.logPlayHistory(endedTrack, playedSec, false, this.activeSource)
 
+    // If the opposite deck is actively playing manually, do not interrupt it with playTrackImmediate
+    const telemetry = this.engine.getTelemetry()
+    const otherDeckId = telemetry.activeDeckId === 'A' ? 'B' : 'A'
+    const otherDeck = telemetry.decks[otherDeckId]
+    if (
+      otherDeck.status === 'playing' ||
+      otherDeck.status === 'fading-in' ||
+      otherDeck.status === 'fading-out'
+    ) {
+      this.activeTrack = otherDeck.track
+      this.activePlayedSec = 0
+      this.lastTickTimestampMs = Date.now()
+      this.emitActiveTrack()
+      return
+    }
+
     if (this.repeatMode === 'one') {
       const seq = ++this.actionSeq
       this.transitionInFlight = true
@@ -858,6 +943,7 @@ export class TransitionScheduler {
 
     const telemetry = this.engine.getTelemetry()
     const activeDeck = telemetry.decks[telemetry.activeDeckId]
+    const standbyDeck = telemetry.decks[telemetry.activeDeckId === 'A' ? 'B' : 'A']
     const nowMs = Date.now()
 
     if (activeDeck.status === 'playing' || activeDeck.status === 'fading-in') {
@@ -874,9 +960,15 @@ export class TransitionScheduler {
       this.repeatMode === 'one' ||
       !activeDeck.track ||
       activeDeck.status !== 'playing' ||
+      activeDeck.loopEnabled ||
       telemetry.transition.active ||
       this.queue.length === 0
     ) {
+      return
+    }
+
+    // Do not auto-transition or overwrite standby if user is manually playing the opposite deck
+    if (standbyDeck.status === 'playing') {
       return
     }
 

@@ -1,12 +1,25 @@
 import { getCamelotCompatibility } from '../../../shared/camelot'
-import type {
-  DeckEqState,
-  DeckId,
-  DeckTelemetry,
-  MixStyle,
-  TrackRecord,
-  TransitionTelemetry
+import {
+  computeEqualPowerCrossfadeGains,
+  computeLoopWindow,
+  computeSyncRate,
+  mapFilterValueToBiquad,
+  type DeckEqKillState,
+  type DeckEqState,
+  type DeckId,
+  type DeckTelemetry,
+  type LoopBeats,
+  type MixStyle,
+  type TrackRecord,
+  type TransitionTelemetry
 } from '../../../shared/types'
+
+export {
+  computeEqualPowerCrossfadeGains,
+  computeLoopWindow,
+  computeSyncRate,
+  mapFilterValueToBiquad
+}
 
 export interface CrossfadeOptions {
   style: MixStyle
@@ -25,6 +38,7 @@ export interface EngineError {
 
 export interface EngineTelemetrySnapshot {
   activeDeckId: DeckId
+  crossfader: number
   decks: Record<DeckId, DeckTelemetry>
   transition: TransitionTelemetry
 }
@@ -49,11 +63,21 @@ interface InternalDeckState {
   rateRamp: RateRampState | null
   crossfadeTargetGain: number
   normalizationGain: number
+  channelGain: number
   eq: DeckEqState
+  eqKill: DeckEqKillState
+  filterValue: number
+  cuePointSec: number
+  loopEnabled: boolean
+  loopBeats: LoopBeats
+  loopStartSec: number | null
+  loopEndSec: number | null
   lowEq: BiquadFilterNode
   midEq: BiquadFilterNode
   highEq: BiquadFilterNode
+  colorFilter: BiquadFilterNode
   normGain: GainNode
+  channelGainNode: GainNode
   crossfadeGain: GainNode
   loadController: AbortController | null
   loadSeq: number
@@ -193,6 +217,7 @@ export class DualDeckEngine {
   private decks: Record<DeckId, InternalDeckState> | null = null
 
   private activeDeckId: DeckId = 'A'
+  private crossfaderPosition = 0
   private masterVolume = 0.85
   private muted = false
   private replayGainEnabled = true
@@ -310,16 +335,26 @@ export class DualDeckEngine {
       highEq.frequency.setValueAtTime(4000, ctx.currentTime)
       highEq.gain.setValueAtTime(0, ctx.currentTime)
 
+      const colorFilter = ctx.createBiquadFilter()
+      colorFilter.type = 'allpass'
+      colorFilter.frequency.setValueAtTime(1000, ctx.currentTime)
+      colorFilter.Q.setValueAtTime(0.707, ctx.currentTime)
+
       const normGain = ctx.createGain()
       normGain.gain.setValueAtTime(1, ctx.currentTime)
+
+      const channelGainNode = ctx.createGain()
+      channelGainNode.gain.setValueAtTime(1, ctx.currentTime)
 
       const crossfadeGain = ctx.createGain()
       crossfadeGain.gain.setValueAtTime(initialGain, ctx.currentTime)
 
       lowEq.connect(midEq)
       midEq.connect(highEq)
-      highEq.connect(normGain)
-      normGain.connect(crossfadeGain)
+      highEq.connect(colorFilter)
+      colorFilter.connect(normGain)
+      normGain.connect(channelGainNode)
+      channelGainNode.connect(crossfadeGain)
       crossfadeGain.connect(masterGain)
 
       return {
@@ -335,20 +370,31 @@ export class DualDeckEngine {
         rateRamp: null,
         crossfadeTargetGain: initialGain,
         normalizationGain: 1,
+        channelGain: 1,
         eq: { low: 0, mid: 0, high: 0 },
+        eqKill: { low: false, mid: false, high: false },
+        filterValue: 0,
+        cuePointSec: 0,
+        loopEnabled: false,
+        loopBeats: 8,
+        loopStartSec: null,
+        loopEndSec: null,
         lowEq,
         midEq,
         highEq,
+        colorFilter,
         normGain,
+        channelGainNode,
         crossfadeGain,
         loadController: null,
         loadSeq: 0
       }
     }
 
+    const initialGains = computeEqualPowerCrossfadeGains(this.crossfaderPosition)
     const decks: Record<DeckId, InternalDeckState> = {
-      A: createDeck('A', 1),
-      B: createDeck('B', 0)
+      A: createDeck('A', initialGains.gainA),
+      B: createDeck('B', initialGains.gainB)
     }
 
     this.ctx = ctx
@@ -386,6 +432,104 @@ export class DualDeckEngine {
     }
   }
 
+  private applyDeckEqBand(
+    deck: InternalDeckState,
+    band: keyof DeckEqState,
+    rampSec = 0.015
+  ): void {
+    if (!this.ctx) return
+    const now = this.ctx.currentTime
+    const node = band === 'low' ? deck.lowEq : band === 'mid' ? deck.midEq : deck.highEq
+    const targetDb = deck.eqKill[band] ? -24 : deck.eq[band]
+    if (rampSec <= 0) {
+      resetAudioParam(node.gain, now, targetDb)
+    } else {
+      node.gain.setTargetAtTime(targetDb, now, rampSec)
+    }
+  }
+
+  private applyDeckFilter(deck: InternalDeckState, rampSec = 0.015): void {
+    if (!this.ctx) return
+    const now = this.ctx.currentTime
+    const spec = mapFilterValueToBiquad(deck.filterValue)
+    if (deck.colorFilter.type !== spec.type) {
+      deck.colorFilter.type = spec.type
+    }
+    if (rampSec <= 0) {
+      resetAudioParam(deck.colorFilter.frequency, now, spec.frequency)
+      resetAudioParam(deck.colorFilter.Q, now, spec.q)
+    } else {
+      deck.colorFilter.frequency.setTargetAtTime(spec.frequency, now, rampSec)
+      deck.colorFilter.Q.setTargetAtTime(spec.q, now, rampSec)
+    }
+  }
+
+  private applyCrossfaderPosition(position: number, now: number, smooth: boolean): void {
+    if (!this.decks) return
+    const clamped = Number(clamp(Number.isFinite(position) ? position : 0.5, 0, 1).toFixed(4))
+    this.crossfaderPosition = clamped
+    const { gainA, gainB } = computeEqualPowerCrossfadeGains(clamped)
+    this.decks.A.crossfadeTargetGain = gainA
+    this.decks.B.crossfadeTargetGain = gainB
+
+    if (smooth) {
+      resetAudioParam(this.decks.A.crossfadeGain.gain, now)
+      resetAudioParam(this.decks.B.crossfadeGain.gain, now)
+      this.decks.A.crossfadeGain.gain.setTargetAtTime(gainA, now, 0.012)
+      this.decks.B.crossfadeGain.gain.setTargetAtTime(gainB, now, 0.012)
+    } else {
+      resetAudioParam(this.decks.A.crossfadeGain.gain, now, gainA)
+      resetAudioParam(this.decks.B.crossfadeGain.gain, now, gainB)
+    }
+  }
+
+  private resetDeckControlsForNewTrack(deck: InternalDeckState, track: TrackRecord): void {
+    const maxDur = deck.duration > 0 ? deck.duration : track.duration
+    const introCue =
+      track.introCueSec !== null && Number.isFinite(track.introCueSec) && track.introCueSec > 0
+        ? clamp(track.introCueSec, 0, Math.max(0, maxDur - 0.1))
+        : 0
+    deck.cuePointSec = Number(introCue.toFixed(3))
+    deck.playbackRate = 1
+    deck.rateRamp = null
+    deck.loopEnabled = false
+    deck.loopStartSec = null
+    deck.loopEndSec = null
+    deck.filterValue = 0
+    deck.eqKill = { low: false, mid: false, high: false }
+    this.applyDeckFilter(deck, 0)
+    this.applyDeckEqBand(deck, 'low', 0)
+    this.applyDeckEqBand(deck, 'mid', 0)
+    this.applyDeckEqBand(deck, 'high', 0)
+  }
+
+  private cancelTransitionKeepBothDecks(): void {
+    if (!this.transition || !this.decks || !this.ctx) return
+    const tr = this.transition
+    this.transition = null
+    if (tr.timerId) {
+      clearTimeout(tr.timerId)
+    }
+
+    const now = this.ctx.currentTime
+    const progress =
+      tr.durationSec > 0 ? clamp((now - tr.startTime) / tr.durationSec, 0, 1) : 1
+    const livePos = tr.fromDeck === 'A' ? progress : 1 - progress
+    this.applyCrossfaderPosition(livePos, now, true)
+
+    for (const deck of [this.decks.A, this.decks.B]) {
+      if (deck.status === 'fading-in' || deck.status === 'fading-out') {
+        deck.status = deck.source ? 'playing' : deck.track ? 'paused' : 'idle'
+      }
+      if (tr.style === 'bass-swap') {
+        if (deck.deckId === tr.toDeck && deck.eq.low < 0) {
+          deck.eq.low = 0
+        }
+        this.applyDeckEqBand(deck, 'low', 0.02)
+      }
+    }
+  }
+
   private releaseDeckBuffer(deck: InternalDeckState): void {
     this.stopAndDisconnectSource(deck)
     deck.buffer = null
@@ -396,11 +540,18 @@ export class DualDeckEngine {
     deck.rateRamp = null
     deck.status = 'idle'
     deck.eq = { low: 0, mid: 0, high: 0 }
+    deck.eqKill = { low: false, mid: false, high: false }
+    deck.filterValue = 0
+    deck.cuePointSec = 0
+    deck.loopEnabled = false
+    deck.loopStartSec = null
+    deck.loopEndSec = null
     if (this.ctx) {
       const now = this.ctx.currentTime
       resetAudioParam(deck.lowEq.gain, now, 0)
       resetAudioParam(deck.midEq.gain, now, 0)
       resetAudioParam(deck.highEq.gain, now, 0)
+      this.applyDeckFilter(deck, 0)
     }
   }
 
@@ -533,6 +684,17 @@ export class DualDeckEngine {
       source.playbackRate.linearRampToValueAtTime(rateRamp.endRate, rateRamp.endTime)
     }
 
+    if (
+      deck.loopEnabled &&
+      deck.loopStartSec !== null &&
+      deck.loopEndSec !== null &&
+      deck.loopEndSec > deck.loopStartSec
+    ) {
+      source.loop = true
+      source.loopStart = deck.loopStartSec
+      source.loopEnd = deck.loopEndSec
+    }
+
     source.connect(deck.lowEq)
 
     const startedTrack = deck.track
@@ -580,7 +742,19 @@ export class DualDeckEngine {
       deck.rateRamp
     )
 
-    deck.playheadPosSec = clamp(deck.playheadPosSec + deltaTrackSec, 0, deck.duration)
+    let nextPos = deck.playheadPosSec + deltaTrackSec
+    if (
+      deck.loopEnabled &&
+      deck.loopStartSec !== null &&
+      deck.loopEndSec !== null &&
+      deck.loopEndSec > deck.loopStartSec &&
+      nextPos >= deck.loopEndSec
+    ) {
+      const loopLen = deck.loopEndSec - deck.loopStartSec
+      nextPos = deck.loopStartSec + ((nextPos - deck.loopStartSec) % loopLen)
+    }
+
+    deck.playheadPosSec = clamp(nextPos, 0, deck.duration)
     deck.lastSyncAudioTime = now
     deck.playbackRate = endRate
 
@@ -610,10 +784,12 @@ export class DualDeckEngine {
     // Ensure incoming deck is cleanly settled at full gain and nominal EQ
     resetAudioParam(toDeck.crossfadeGain.gain, now, 1)
     toDeck.crossfadeTargetGain = 1
+    this.crossfaderPosition = tr.toDeck === 'A' ? 0 : 1
 
     if (tr.style === 'bass-swap') {
-      resetAudioParam(toDeck.lowEq.gain, now, 0)
       toDeck.eq.low = 0
+      toDeck.eqKill.low = false
+      resetAudioParam(toDeck.lowEq.gain, now, 0)
     }
 
     if (toDeck.status === 'fading-in') {
@@ -658,14 +834,15 @@ export class DualDeckEngine {
     if (!alreadyLoaded) {
       const ok = await this.loadTrackIntoDeck(targetDeck, track, true)
       if (!ok) return false
+      this.resetDeckControlsForNewTrack(targetDeck, track)
     }
 
     const now = ctx.currentTime
-    resetAudioParam(targetDeck.crossfadeGain.gain, now, 1)
-    targetDeck.crossfadeTargetGain = 1
-    resetAudioParam(targetDeck.lowEq.gain, now, targetDeck.eq.low)
-    resetAudioParam(targetDeck.midEq.gain, now, targetDeck.eq.mid)
-    resetAudioParam(targetDeck.highEq.gain, now, targetDeck.eq.high)
+    this.applyCrossfaderPosition(targetDeckId === 'A' ? 0 : 1, now, false)
+    this.applyDeckEqBand(targetDeck, 'low', 0)
+    this.applyDeckEqBand(targetDeck, 'mid', 0)
+    this.applyDeckEqBand(targetDeck, 'high', 0)
+    this.applyDeckFilter(targetDeck, 0)
 
     targetDeck.status = 'playing'
     this.startDeckSource(targetDeck, offsetSec, 1, null)
@@ -681,12 +858,17 @@ export class DualDeckEngine {
     if (standbyDeck.track?.id === track.id && standbyDeck.buffer !== null) {
       return true
     }
-    if (standbyDeck.status === 'fading-out' || standbyDeck.status === 'fading-in') {
+    if (
+      standbyDeck.status === 'playing' ||
+      standbyDeck.status === 'fading-out' ||
+      standbyDeck.status === 'fading-in'
+    ) {
       return false
     }
 
     const ok = await this.loadTrackIntoDeck(standbyDeck, track, false)
     if (ok) {
+      this.resetDeckControlsForNewTrack(standbyDeck, track)
       standbyDeck.status = 'idle'
     }
     return ok
@@ -722,6 +904,7 @@ export class DualDeckEngine {
         return false
       }
     }
+    this.resetDeckControlsForNewTrack(toDeck, targetTrack)
 
     // Resume fromDeck if it was paused so crossfade actually mixes out smoothly
     if (fromDeck.status === 'paused' && fromDeck.buffer) {
@@ -767,10 +950,11 @@ export class DualDeckEngine {
     toDeck.crossfadeGain.gain.setValueCurveAtTime(EQUAL_POWER_CURVES.inCurve, now, mixDuration)
     toDeck.crossfadeTargetGain = 1
 
-    const fromInitialLow = fromDeck.eq.low
+    const fromInitialLow = fromDeck.eqKill.low ? -24 : fromDeck.eq.low
     resetAudioParam(toDeck.midEq.gain, now, 0)
     resetAudioParam(toDeck.highEq.gain, now, 0)
     toDeck.eq = { low: 0, mid: 0, high: 0 }
+    toDeck.eqKill = { low: false, mid: false, high: false }
 
     if (options.style === 'bass-swap') {
       const t40 = now + mixDuration * 0.4
@@ -823,6 +1007,345 @@ export class DualDeckEngine {
     return true
   }
 
+  async loadTrackToDeck(
+    deckId: DeckId,
+    track: TrackRecord,
+    options?: { autoplay?: boolean }
+  ): Promise<boolean> {
+    if (this.disposed) return false
+    const { ctx, decks } = this.ensureAudioGraph()
+    const deck = decks[deckId]
+    const otherDeckId: DeckId = deckId === 'A' ? 'B' : 'A'
+    const otherDeck = decks[otherDeckId]
+
+    // Cancel any active automated transition without stopping the opposite deck
+    if (
+      this.transition &&
+      (this.transition.fromDeck === deckId || this.transition.toDeck === deckId)
+    ) {
+      this.cancelTransitionKeepBothDecks()
+    }
+
+    const otherWasActive =
+      otherDeck.status === 'playing' ||
+      otherDeck.status === 'fading-in' ||
+      otherDeck.status === 'fading-out'
+    const bothWereIdle = !otherWasActive && !otherDeck.track && !deck.track
+
+    const ok = await this.loadTrackIntoDeck(deck, track, true)
+    if (!ok) return false
+
+    this.resetDeckControlsForNewTrack(deck, track)
+
+    const autoplay = Boolean(options?.autoplay)
+    const otherStillActive =
+      otherDeck.status === 'playing' ||
+      otherDeck.status === 'fading-in' ||
+      otherDeck.status === 'fading-out'
+
+    if ((autoplay && !otherStillActive) || (!otherStillActive && bothWereIdle)) {
+      this.applyCrossfaderPosition(deckId === 'A' ? 0 : 1, ctx.currentTime, false)
+      this.activeDeckId = deckId
+    }
+
+    if (autoplay) {
+      await this.ensureRunningContext()
+      deck.status = 'playing'
+      this.startDeckSource(deck, 0, deck.playbackRate, null)
+    } else {
+      deck.status = 'idle'
+    }
+
+    return true
+  }
+
+  unloadDeck(deckId: DeckId): void {
+    if (this.disposed || !this.decks) return
+    const deck = this.decks[deckId]
+
+    if (
+      this.transition &&
+      (this.transition.fromDeck === deckId || this.transition.toDeck === deckId)
+    ) {
+      this.cancelTransitionKeepBothDecks()
+    }
+
+    this.cancelDeckLoad(deck)
+    this.releaseDeckBuffer(deck)
+
+    const otherDeckId: DeckId = deckId === 'A' ? 'B' : 'A'
+    if (this.activeDeckId === deckId && this.decks[otherDeckId].track) {
+      this.activeDeckId = otherDeckId
+    }
+  }
+
+  async toggleDeckPlayPause(deckId: DeckId): Promise<boolean> {
+    if (this.disposed) return false
+    const ctx = await this.ensureRunningContext()
+    const decks = this.decks!
+    const deck = decks[deckId]
+
+    if (
+      this.transition &&
+      (this.transition.fromDeck === deckId || this.transition.toDeck === deckId)
+    ) {
+      this.cancelTransitionKeepBothDecks()
+    }
+
+    if (
+      deck.status === 'playing' ||
+      deck.status === 'fading-in' ||
+      deck.status === 'fading-out'
+    ) {
+      this.syncDeckPlayhead(deck)
+      this.stopAndDisconnectSource(deck)
+      deck.status = 'paused'
+      return false
+    }
+
+    if (!deck.track) return false
+
+    if (!deck.buffer) {
+      const ok = await this.loadTrackIntoDeck(deck, deck.track, true)
+      if (!ok) return false
+    }
+
+    const maxDur = deck.duration > 0 ? deck.duration : deck.track.duration
+    const startOffset =
+      deck.playheadPosSec >= Math.max(0, maxDur - 0.05) ? 0 : deck.playheadPosSec
+
+    const otherDeckId: DeckId = deckId === 'A' ? 'B' : 'A'
+    const otherDeck = decks[otherDeckId]
+    const otherActive =
+      otherDeck.status === 'playing' ||
+      otherDeck.status === 'fading-in' ||
+      otherDeck.status === 'fading-out'
+
+    if (!otherActive && !otherDeck.track) {
+      this.applyCrossfaderPosition(deckId === 'A' ? 0 : 1, ctx.currentTime, false)
+      this.activeDeckId = deckId
+    }
+
+    deck.status = 'playing'
+    this.startDeckSource(deck, startOffset, deck.playbackRate, deck.rateRamp)
+    return true
+  }
+
+  seekDeck(deckId: DeckId, timeSec: number): void {
+    if (this.disposed || !this.decks) return
+    const deck = this.decks[deckId]
+    if (!deck.track) return
+
+    if (
+      this.transition &&
+      (this.transition.fromDeck === deckId || this.transition.toDeck === deckId)
+    ) {
+      this.cancelTransitionKeepBothDecks()
+    }
+
+    const maxDur = deck.duration > 0 ? deck.duration : deck.track.duration
+    const clamped = clamp(Number.isFinite(timeSec) ? timeSec : 0, 0, Math.max(0, maxDur - 0.05))
+    deck.playheadPosSec = clamped
+    if (this.ctx) {
+      deck.lastSyncAudioTime = this.ctx.currentTime
+    }
+
+    // If loop is enabled and user seeks past the current loop end, shift the loop window to the new spot
+    if (deck.loopEnabled && deck.loopEndSec !== null && clamped >= deck.loopEndSec) {
+      const win = computeLoopWindow(clamped, deck.track.bpm, deck.loopBeats, maxDur)
+      if (win.endSec > win.startSec) {
+        deck.loopStartSec = win.startSec
+        deck.loopEndSec = win.endSec
+      }
+    }
+
+    if (
+      deck.buffer &&
+      (deck.status === 'playing' ||
+        deck.status === 'fading-in' ||
+        deck.status === 'fading-out')
+    ) {
+      deck.status = 'playing'
+      this.startDeckSource(deck, clamped, deck.playbackRate, deck.rateRamp)
+    }
+  }
+
+  setDeckPlaybackRate(deckId: DeckId, rate: number): void {
+    if (this.disposed) return
+    const clampedRate = Number(clamp(Number.isFinite(rate) ? rate : 1, 0.88, 1.12).toFixed(4))
+    const { ctx, decks } = this.ensureAudioGraph()
+    const deck = decks[deckId]
+    this.syncDeckPlayhead(deck)
+    deck.rateRamp = null
+    deck.playbackRate = clampedRate
+    if (deck.source) {
+      resetAudioParam(deck.source.playbackRate, ctx.currentTime, clampedRate)
+    }
+  }
+
+  nudgeDeckPlaybackRate(deckId: DeckId, delta: number): void {
+    if (this.disposed || !Number.isFinite(delta)) return
+    const { decks } = this.ensureAudioGraph()
+    const deck = decks[deckId]
+    this.syncDeckPlayhead(deck)
+    this.setDeckPlaybackRate(deckId, deck.playbackRate + delta)
+  }
+
+  syncDeckBpm(deckId: DeckId): void {
+    if (this.disposed || !this.decks) return
+    const deck = this.decks[deckId]
+    const other = this.decks[deckId === 'A' ? 'B' : 'A']
+    const sourceBpm = deck.track?.bpm ?? null
+    const otherBpm = other.track?.bpm ?? null
+    if (!sourceBpm || !otherBpm || sourceBpm <= 0 || otherBpm <= 0) return
+    this.syncDeckPlayhead(other)
+    const targetEffectiveBpm = otherBpm * other.playbackRate
+    const syncedRate = computeSyncRate(sourceBpm, targetEffectiveBpm, 12)
+    this.setDeckPlaybackRate(deckId, syncedRate)
+  }
+
+  setDeckCuePoint(deckId: DeckId, sec?: number): void {
+    if (this.disposed || !this.decks) return
+    const deck = this.decks[deckId]
+    if (!deck.track) return
+    this.syncDeckPlayhead(deck)
+    const raw = sec !== undefined && Number.isFinite(sec) ? sec : deck.playheadPosSec
+    const maxDur = deck.duration > 0 ? deck.duration : deck.track.duration
+    deck.cuePointSec = Number(clamp(raw, 0, Math.max(0, maxDur - 0.05)).toFixed(3))
+  }
+
+  jumpToDeckCue(deckId: DeckId): void {
+    if (this.disposed || !this.decks) return
+    const deck = this.decks[deckId]
+    if (!deck.track) return
+    this.seekDeck(deckId, deck.cuePointSec)
+  }
+
+  setDeckLoop(deckId: DeckId, enabled: boolean, beats?: LoopBeats): void {
+    if (this.disposed) return
+    const { decks } = this.ensureAudioGraph()
+    const deck = decks[deckId]
+    this.syncDeckPlayhead(deck)
+
+    if (beats !== undefined) {
+      deck.loopBeats = beats
+    }
+
+    if (!enabled || !deck.track) {
+      deck.loopEnabled = false
+      deck.loopStartSec = null
+      deck.loopEndSec = null
+      if (deck.source) {
+        deck.source.loop = false
+        deck.source.loopStart = 0
+        deck.source.loopEnd = 0
+      }
+      return
+    }
+
+    const maxDur = deck.duration > 0 ? deck.duration : deck.track.duration
+    if (maxDur <= 0.1) return
+
+    const win = computeLoopWindow(deck.playheadPosSec, deck.track.bpm, deck.loopBeats, maxDur)
+    if (win.endSec <= win.startSec) return
+
+    deck.loopEnabled = true
+    deck.loopStartSec = win.startSec
+    deck.loopEndSec = win.endSec
+
+    if (deck.source) {
+      deck.source.loop = true
+      deck.source.loopStart = win.startSec
+      deck.source.loopEnd = win.endSec
+      if (deck.playheadPosSec >= win.endSec - 0.02 || deck.playheadPosSec < win.startSec - 0.02) {
+        this.startDeckSource(deck, win.startSec, deck.playbackRate, deck.rateRamp)
+      }
+    }
+  }
+
+  setDeckLoopBeats(deckId: DeckId, beats: LoopBeats): void {
+    if (this.disposed) return
+    const { decks } = this.ensureAudioGraph()
+    const deck = decks[deckId]
+    deck.loopBeats = beats
+
+    if (!deck.loopEnabled || !deck.track) return
+
+    this.syncDeckPlayhead(deck)
+    const maxDur = deck.duration > 0 ? deck.duration : deck.track.duration
+    if (maxDur <= 0.1) return
+
+    const anchor = deck.loopStartSec ?? deck.playheadPosSec
+    const win = computeLoopWindow(anchor, deck.track.bpm, beats, maxDur)
+    if (win.endSec <= win.startSec) return
+
+    deck.loopStartSec = win.startSec
+    deck.loopEndSec = win.endSec
+
+    if (deck.source) {
+      deck.source.loop = true
+      deck.source.loopStart = win.startSec
+      deck.source.loopEnd = win.endSec
+      if (deck.playheadPosSec >= win.endSec - 0.02) {
+        this.startDeckSource(deck, win.startSec, deck.playbackRate, deck.rateRamp)
+      }
+    }
+  }
+
+  setDeckChannelGain(deckId: DeckId, gain: number): void {
+    if (this.disposed) return
+    const clamped = Number(clamp(Number.isFinite(gain) ? gain : 1, 0, 1).toFixed(4))
+    const { ctx, decks } = this.ensureAudioGraph()
+    const deck = decks[deckId]
+    deck.channelGain = clamped
+    deck.channelGainNode.gain.setTargetAtTime(clamped, ctx.currentTime, 0.015)
+  }
+
+  setDeckFilter(deckId: DeckId, value: number): void {
+    if (this.disposed) return
+    const clamped = Number(clamp(Number.isFinite(value) ? value : 0, -1, 1).toFixed(3))
+    const { decks } = this.ensureAudioGraph()
+    const deck = decks[deckId]
+    deck.filterValue = clamped
+    this.applyDeckFilter(deck, 0.015)
+  }
+
+  setDeckEqKill(deckId: DeckId, band: keyof DeckEqState, killed: boolean): void {
+    if (this.disposed) return
+    const { decks } = this.ensureAudioGraph()
+    const deck = decks[deckId]
+    deck.eqKill[band] = killed
+    this.applyDeckEqBand(deck, band, 0.01)
+  }
+
+  resetDeckEq(deckId: DeckId): void {
+    if (this.disposed) return
+    const { decks } = this.ensureAudioGraph()
+    const deck = decks[deckId]
+    deck.eq = { low: 0, mid: 0, high: 0 }
+    deck.eqKill = { low: false, mid: false, high: false }
+    this.applyDeckEqBand(deck, 'low', 0.015)
+    this.applyDeckEqBand(deck, 'mid', 0.015)
+    this.applyDeckEqBand(deck, 'high', 0.015)
+  }
+
+  setManualCrossfader(position: number): void {
+    if (this.disposed) return
+    const clamped = clamp(Number.isFinite(position) ? position : 0.5, 0, 1)
+    const { ctx, decks } = this.ensureAudioGraph()
+
+    if (this.transition) {
+      this.cancelTransitionKeepBothDecks()
+    }
+
+    this.applyCrossfaderPosition(clamped, ctx.currentTime, true)
+
+    const preferredDeck: DeckId = clamped >= 0.5 ? 'B' : 'A'
+    if (decks[preferredDeck].track !== null) {
+      this.activeDeckId = preferredDeck
+    }
+  }
+
   async pause(): Promise<void> {
     if (this.disposed || !this.ctx || !this.decks) return
 
@@ -840,10 +1363,15 @@ export class DualDeckEngine {
     }
 
     const active = this.decks[this.activeDeckId]
+    const other = this.decks[this.activeDeckId === 'A' ? 'B' : 'A']
     if (active.status === 'playing') {
       this.syncDeckPlayhead(active)
       this.stopAndDisconnectSource(active)
       active.status = 'paused'
+    } else if (other.status === 'playing') {
+      this.syncDeckPlayhead(other)
+      this.stopAndDisconnectSource(other)
+      other.status = 'paused'
     }
   }
 
@@ -870,7 +1398,7 @@ export class DualDeckEngine {
 
     await this.ensureRunningContext()
     const active = this.decks[this.activeDeckId]
-    if (active.status === 'paused' && active.buffer && active.track) {
+    if ((active.status === 'paused' || active.status === 'idle') && active.buffer && active.track) {
       active.status = 'playing'
       this.startDeckSource(active, active.playheadPosSec, active.playbackRate, active.rateRamp)
     }
@@ -918,21 +1446,18 @@ export class DualDeckEngine {
   }
 
   setDeckEq(deckId: DeckId, band: keyof DeckEqState, gainDb: number): void {
+    if (this.disposed) return
     const clampedDb = clamp(gainDb, -24, 12)
-    if (!this.decks || !this.ctx) return
-    const deck = this.decks[deckId]
+    const { decks } = this.ensureAudioGraph()
+    const deck = decks[deckId]
     deck.eq[band] = clampedDb
-    const now = this.ctx.currentTime
-    const node = band === 'low' ? deck.lowEq : band === 'mid' ? deck.midEq : deck.highEq
-    node.gain.setTargetAtTime(clampedDb, now, 0.015)
+    this.applyDeckEqBand(deck, band, 0.015)
   }
 
   resetAllDeckEq(): void {
-    for (const deckId of ['A', 'B'] as const) {
-      this.setDeckEq(deckId, 'low', 0)
-      this.setDeckEq(deckId, 'mid', 0)
-      this.setDeckEq(deckId, 'high', 0)
-    }
+    if (this.disposed || !this.decks) return
+    this.resetDeckEq('A')
+    this.resetDeckEq('B')
   }
 
   setReplayGainEnabled(enabled: boolean): void {
@@ -982,6 +1507,7 @@ export class DualDeckEngine {
 
   getTelemetry(): EngineTelemetrySnapshot {
     if (!this.decks || !this.ctx) {
+      const gains = computeEqualPowerCrossfadeGains(this.crossfaderPosition)
       const emptyDeck = (deckId: DeckId, gain: number): DeckTelemetry => ({
         deckId,
         track: null,
@@ -989,15 +1515,24 @@ export class DualDeckEngine {
         currentTime: 0,
         duration: 0,
         playbackRate: 1,
-        crossfadeGain: gain,
+        crossfadeGain: Number(gain.toFixed(3)),
         normalizationGain: 1,
-        eq: { low: 0, mid: 0, high: 0 }
+        channelGain: 1,
+        eq: { low: 0, mid: 0, high: 0 },
+        eqKill: { low: false, mid: false, high: false },
+        filterValue: 0,
+        cuePointSec: 0,
+        loopEnabled: false,
+        loopBeats: 8,
+        loopStartSec: null,
+        loopEndSec: null
       })
       return {
         activeDeckId: this.activeDeckId,
+        crossfader: Number(this.crossfaderPosition.toFixed(3)),
         decks: {
-          A: emptyDeck('A', 1),
-          B: emptyDeck('B', 0)
+          A: emptyDeck('A', gains.gainA),
+          B: emptyDeck('B', gains.gainB)
         },
         transition: {
           active: false,
@@ -1021,6 +1556,11 @@ export class DualDeckEngine {
     const tr = this.transition
     const progress =
       tr && tr.durationSec > 0 ? clamp((now - tr.startTime) / tr.durationSec, 0, 1) : 0
+    const liveCrossfader = tr
+      ? tr.fromDeck === 'A'
+        ? progress
+        : 1 - progress
+      : this.crossfaderPosition
 
     const computeDeckTelemetry = (deck: InternalDeckState): DeckTelemetry => {
       let cfGain = deck.crossfadeTargetGain
@@ -1048,8 +1588,6 @@ export class DualDeckEngine {
             }
           }
         }
-      } else {
-        cfGain = deck.deckId === this.activeDeckId ? 1 : 0
       }
 
       return {
@@ -1061,16 +1599,25 @@ export class DualDeckEngine {
         playbackRate: Number(deck.playbackRate.toFixed(4)),
         crossfadeGain: Number(cfGain.toFixed(3)),
         normalizationGain: deck.normalizationGain,
+        channelGain: Number(deck.channelGain.toFixed(3)),
         eq: {
           low: Number(eq.low.toFixed(2)),
           mid: Number(eq.mid.toFixed(2)),
           high: Number(eq.high.toFixed(2))
-        }
+        },
+        eqKill: { ...deck.eqKill },
+        filterValue: Number(deck.filterValue.toFixed(3)),
+        cuePointSec: Number(deck.cuePointSec.toFixed(3)),
+        loopEnabled: deck.loopEnabled,
+        loopBeats: deck.loopBeats,
+        loopStartSec: deck.loopStartSec !== null ? Number(deck.loopStartSec.toFixed(3)) : null,
+        loopEndSec: deck.loopEndSec !== null ? Number(deck.loopEndSec.toFixed(3)) : null
       }
     }
 
     return {
       activeDeckId: this.activeDeckId,
+      crossfader: Number(liveCrossfader.toFixed(3)),
       decks: {
         A: computeDeckTelemetry(this.decks.A),
         B: computeDeckTelemetry(this.decks.B)
@@ -1117,7 +1664,9 @@ export class DualDeckEngine {
           deck.lowEq.disconnect()
           deck.midEq.disconnect()
           deck.highEq.disconnect()
+          deck.colorFilter.disconnect()
           deck.normGain.disconnect()
+          deck.channelGainNode.disconnect()
           deck.crossfadeGain.disconnect()
         } catch {
           // Ignore disconnect errors

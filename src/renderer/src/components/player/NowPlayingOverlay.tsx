@@ -13,7 +13,6 @@ import {
   Shuffle,
   SkipBack,
   SkipForward,
-  Sliders,
   Sparkles,
   Volume2,
   Wand2
@@ -22,7 +21,6 @@ import { ArtworkCover } from '@/components/common/ArtworkCover'
 import { EnergyMeter } from '@/components/common/EnergyMeter'
 import { KeyBadge } from '@/components/common/KeyBadge'
 import { AutoDjQueuePanel } from '@/components/player/AutoDjQueuePanel'
-import { DualDeckView } from '@/components/player/DualDeckView'
 import { LyricsPanel } from '@/components/player/LyricsPanel'
 import { SpectrumVisualizer } from '@/components/player/SpectrumVisualizer'
 import { WaveformScrubber } from '@/components/player/WaveformScrubber'
@@ -89,22 +87,6 @@ export function NowPlayingOverlay() {
             <Mic2 className="h-3.5 w-3.5" />
             <span>Lyrics</span>
           </button>
-
-          <button
-            type="button"
-            onClick={() => setNowPlayingTab('decks')}
-            className={`inline-flex items-center gap-2 rounded-lg px-3.5 py-1.5 text-xs font-semibold transition-all ${
-              tab === 'decks'
-                ? 'bg-accent text-white shadow-glow'
-                : 'text-slate-400 hover:text-white'
-            }`}
-          >
-            <Sliders className="h-3.5 w-3.5" />
-            <span>Dual-Deck DJ Booth</span>
-            {telemetry.transition.active && (
-              <span className="h-2 w-2 rounded-full bg-accentGlow animate-ping" />
-            )}
-          </button>
         </div>
 
         <div className="flex items-center gap-2">
@@ -150,9 +132,7 @@ export function NowPlayingOverlay() {
             tab === 'lyrics' ? 'flex flex-col overflow-hidden' : 'overflow-y-auto'
           }`}
         >
-          {tab === 'decks' ? (
-            <DualDeckView />
-          ) : tab === 'lyrics' ? (
+          {tab === 'lyrics' ? (
             <LyricsPanel />
           ) : (
             <div className="mx-auto flex h-full max-w-3xl flex-col justify-between gap-6">

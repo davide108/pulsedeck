@@ -83,10 +83,10 @@ export function App() {
       case 'autodj':
         return (
           <div className="flex h-full flex-col overflow-hidden lg:flex-row">
-            <div className="flex-1 overflow-y-auto border-b border-white/[0.07] p-5 lg:border-r lg:border-b-0">
+            <div className="min-w-0 flex-1 overflow-y-auto border-b border-white/[0.07] p-5 lg:border-r lg:border-b-0">
               <DualDeckView />
             </div>
-            <div className="h-[45%] w-full shrink-0 overflow-hidden bg-surface/35 lg:h-full lg:w-[400px]">
+            <div className="h-[45%] w-full shrink-0 overflow-hidden bg-surface/35 lg:h-full lg:w-[420px] xl:w-[440px]">
               <AutoDjQueuePanel />
             </div>
           </div>

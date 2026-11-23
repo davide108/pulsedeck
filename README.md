@@ -10,7 +10,7 @@ A sleek, dark-first desktop music player for **Windows** and **macOS** with loca
 
 <table>
   <tr>
-    <td><strong>Dual-Deck Auto-Mix &amp; Harmonic Queue</strong><br/><img src="docs/screenshots/dual-deck.png" alt="PulseDeck Dual-Deck Auto-Mix" /></td>
+    <td><strong>DJ Booth: Dual-Deck Controls, Drag &amp; Drop &amp; Library Browser</strong><br/><img src="docs/screenshots/dual-deck.png" alt="PulseDeck DJ Booth" /></td>
     <td><strong>Synced Lyrics &amp; Now Playing</strong><br/><img src="docs/screenshots/lyrics.png" alt="PulseDeck Synced Lyrics" /></td>
   </tr>
   <tr>
@@ -25,14 +25,14 @@ A sleek, dark-first desktop music player for **Windows** and **macOS** with loca
 Download the latest installers from the [**Releases**](https://github.com/davide108/pulsedeck/releases/latest) page:
 
 ### Windows (10 / 11 x64)
-- **`PulseDeck-Setup-1.1.1.exe`** — Standard Windows installer (Start Menu & Desktop shortcuts, uninstaller, and automatic in-app updates)
-- **`PulseDeck-1.1.1-portable.exe`** — Portable executable (runs directly without installation)
+- **`PulseDeck-Setup-1.2.0.exe`** — Standard Windows installer (Start Menu & Desktop shortcuts, uninstaller, and automatic in-app updates)
+- **`PulseDeck-1.2.0-portable.exe`** — Portable executable (runs directly without installation)
 
 > **Windows SmartScreen Note:** Because PulseDeck is currently unsigned, Windows may display *"Windows protected your PC"* on first launch. Click **More info** → **Run anyway** to proceed.
 
 ### macOS (Apple Silicon & Intel)
-- **`PulseDeck-1.1.1-mac-arm64.dmg`** — For Apple Silicon Macs (M1 / M2 / M3 / M4)
-- **`PulseDeck-1.1.1-mac-x64.dmg`** — For Intel Macs
+- **`PulseDeck-1.2.0-mac-arm64.dmg`** — For Apple Silicon Macs (M1 / M2 / M3 / M4)
+- **`PulseDeck-1.2.0-mac-x64.dmg`** — For Intel Macs
 
 > **macOS Gatekeeper Note:** Because builds are currently unsigned/notarized, macOS may warn that the app cannot be verified on first launch. Open **System Settings → Privacy & Security → Open Anyway**, or run `xattr -cr /Applications/PulseDeck.app` after dragging PulseDeck into Applications.
 
@@ -46,10 +46,11 @@ Download the latest installers from the [**Releases**](https://github.com/davide
 - **Wide Format Support:** Supports `.mp3`, `.flac`, `.wav`, `.ogg`, `.m4a`, `.aac`, and `.opus` with clean filename fallback parsing (`Artist - Title`) when tags are missing.
 - **Instant Search & Smart Views:** Fast SQLite-backed filtering by Track, Artist, Album, Genre, BPM range, Camelot Key, and Source Folder, plus custom Playlists and Smart Views (*Recently Added*, *Most Played*, *High Energy*).
 
-### Optional Auto-Mix & Dual-Deck DJ Engine
-- **Opt-In Harmonic Mixing (`D`):** Toggle **Auto-Mix** anytime to blend tracks automatically at outro cues using BPM proximity (including half/double-time), Camelot Wheel harmony, genre/energy flow, and anti-repeat scoring.
-- **DJ-Style Transitions:** Choose between **Equal-Power**, **Bass-Swap** (3-band EQ low-end swap), and **Quick Cut** (`0.5s`) with fixed seconds or BPM bar-aligned mix lengths and optional tempo matching.
-- **Transparent Queue & Real-Time Adaptation:** Lock, reorder, remove, or reroll upcoming picks. Manually selecting or skipping a track smoothly crossfades and re-anchors the Auto-Mix queue in the new direction.
+### DJ Booth, Dual-Deck Mixing & Optional Auto-Mix
+- **Sidepanel DJ Booth:** Open **DJ Booth** directly from the left sidebar to access independent **Deck A** and **Deck B**, drag and drop tracks straight onto either deck (or click **`A` / `B`**), and browse either your **Up Next (Auto-Mix)** queue or your **Whole Library** with live search and sorting.
+- **Full Per-Deck DJ Controls:** Independent **Play/Pause**, **Cue / Set Cue**, **BPM Sync**, **4 / 8 / 16 Beat Loops**, **Tempo ±12%** fader with pitch nudge & reset, **3-Band EQ** with per-band **Kill** switches, bipolar **LPF/HPF Color Filter**, **Channel Volume**, interactive dual waveforms, and an interactive **Crossfader** (`A` / `50/50` / `B`).
+- **Opt-In Harmonic Auto-Mix (`D`):** Toggle **Auto-Mix** anytime to blend tracks automatically at outro cues using BPM proximity (including half/double-time), Camelot Wheel harmony, genre/energy flow, and anti-repeat scoring with **Equal-Power**, **Bass-Swap**, or **Quick Cut** transitions.
+- **Transparent Queue & Real-Time Adaptation:** Lock, reorder, remove, reroll, or enqueue picks from your library. Manually selecting or skipping a track smoothly crossfades and re-anchors the Auto-Mix queue in the new direction.
 
 ### Synced & Static Lyrics (`L`)
 - **Automatic Lookup (Synced First):** Automatically checks local `.lrc`/`.txt` sidecars, embedded tags, and **LRCLIB**, prioritizing time-synced LRC lyrics over static text.
