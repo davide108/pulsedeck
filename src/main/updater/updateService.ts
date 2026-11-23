@@ -114,6 +114,23 @@ export function pickReleaseDownloadUrl(
   return fallbackUrl
 }
 
+/**
+ * Extracts `autoUpdater` from either direct ESM named exports or CJS-interop `default` exports.
+ */
+export function resolveAutoUpdaterFromModule(mod: unknown): AppUpdater {
+  if (mod && typeof mod === 'object') {
+    const record = mod as {
+      autoUpdater?: AppUpdater
+      default?: { autoUpdater?: AppUpdater }
+    }
+    const candidate = record.autoUpdater ?? record.default?.autoUpdater
+    if (candidate) {
+      return candidate
+    }
+  }
+  throw new Error('Failed to load electron-updater autoUpdater instance.')
+}
+
 export interface UpdateServiceOptions {
   currentVersion: string
   isPackaged: boolean
@@ -181,7 +198,7 @@ export function createUpdateService(options: UpdateServiceOptions): UpdateServic
       options.loadAutoUpdater ??
       (async () => {
         const mod = await import('electron-updater')
-        return mod.autoUpdater
+        return resolveAutoUpdaterFromModule(mod)
       })
 
     const updater = await loader()

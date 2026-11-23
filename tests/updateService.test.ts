@@ -3,7 +3,8 @@ import {
   compareSemver,
   createUpdateService,
   formatReleaseNotes,
-  pickReleaseDownloadUrl
+  pickReleaseDownloadUrl,
+  resolveAutoUpdaterFromModule
 } from '../src/main/updater/updateService'
 
 describe('updateService helpers', () => {
@@ -45,6 +46,13 @@ describe('updateService helpers', () => {
       'https://example.com/setup.exe'
     )
     expect(pickReleaseDownloadUrl([], 'linux', 'x64', 'https://fallback')).toBe('https://fallback')
+  })
+
+  it('resolves autoUpdater from both named and default-wrapped CJS module shapes', () => {
+    const fakeUpdater = { autoDownload: false } as unknown as import('electron-updater').AppUpdater
+    expect(resolveAutoUpdaterFromModule({ autoUpdater: fakeUpdater })).toBe(fakeUpdater)
+    expect(resolveAutoUpdaterFromModule({ default: { autoUpdater: fakeUpdater } })).toBe(fakeUpdater)
+    expect(() => resolveAutoUpdaterFromModule({})).toThrow()
   })
 })
 

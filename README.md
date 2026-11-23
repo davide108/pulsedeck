@@ -25,14 +25,14 @@ A sleek, dark-first desktop music player for **Windows** and **macOS** with loca
 Download the latest installers from the [**Releases**](https://github.com/davide108/pulsedeck/releases/latest) page:
 
 ### Windows (10 / 11 x64)
-- **`PulseDeck-Setup-1.1.0.exe`** — Standard Windows installer (Start Menu & Desktop shortcuts, uninstaller, and automatic in-app updates)
-- **`PulseDeck-1.1.0-portable.exe`** — Portable executable (runs directly without installation)
+- **`PulseDeck-Setup-1.1.1.exe`** — Standard Windows installer (Start Menu & Desktop shortcuts, uninstaller, and automatic in-app updates)
+- **`PulseDeck-1.1.1-portable.exe`** — Portable executable (runs directly without installation)
 
 > **Windows SmartScreen Note:** Because PulseDeck is currently unsigned, Windows may display *"Windows protected your PC"* on first launch. Click **More info** → **Run anyway** to proceed.
 
 ### macOS (Apple Silicon & Intel)
-- **`PulseDeck-1.1.0-mac-arm64.dmg`** — For Apple Silicon Macs (M1 / M2 / M3 / M4)
-- **`PulseDeck-1.1.0-mac-x64.dmg`** — For Intel Macs
+- **`PulseDeck-1.1.1-mac-arm64.dmg`** — For Apple Silicon Macs (M1 / M2 / M3 / M4)
+- **`PulseDeck-1.1.1-mac-x64.dmg`** — For Intel Macs
 
 > **macOS Gatekeeper Note:** Because builds are currently unsigned/notarized, macOS may warn that the app cannot be verified on first launch. Open **System Settings → Privacy & Security → Open Anyway**, or run `xattr -cr /Applications/PulseDeck.app` after dragging PulseDeck into Applications.
 
