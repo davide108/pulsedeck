@@ -109,6 +109,38 @@ export function pickReleaseDownloadUrl(
         a.name.toLowerCase().includes('setup')
     )
     if (setup?.browser_download_url) return setup.browser_download_url
+  } else if (platform === 'linux') {
+    const validAssets = assets.filter(
+      (a): a is { name: string; browser_download_url: string } =>
+        typeof a.name === 'string' &&
+        typeof a.browser_download_url === 'string' &&
+        a.browser_download_url.length > 0
+    )
+
+    const isArm64 = arch === 'arm64'
+    const archTokens = isArm64 ? ['arm64', 'aarch64'] : ['x86_64', 'x64', 'amd64']
+    const matchesArch = (name: string): boolean => {
+      const lower = name.toLowerCase()
+      return archTokens.some((token) => lower.includes(token))
+    }
+
+    const appImages = validAssets.filter((a) => a.name.toLowerCase().endsWith('.appimage'))
+    const matchingAppImage =
+      appImages.find((a) => matchesArch(a.name)) ??
+      (!isArm64 ? appImages.find((a) => !/arm64|aarch64/i.test(a.name)) : undefined)
+    if (matchingAppImage) return matchingAppImage.browser_download_url
+
+    const debs = validAssets.filter((a) => a.name.toLowerCase().endsWith('.deb'))
+    const matchingDeb =
+      debs.find((a) => matchesArch(a.name)) ??
+      (!isArm64 ? debs.find((a) => !/arm64|aarch64/i.test(a.name)) : undefined)
+    if (matchingDeb) return matchingDeb.browser_download_url
+
+    const rpms = validAssets.filter((a) => a.name.toLowerCase().endsWith('.rpm'))
+    const matchingRpm =
+      rpms.find((a) => matchesArch(a.name)) ??
+      (!isArm64 ? rpms.find((a) => !/arm64|aarch64/i.test(a.name)) : undefined)
+    if (matchingRpm) return matchingRpm.browser_download_url
   }
 
   return fallbackUrl
@@ -137,6 +169,7 @@ export interface UpdateServiceOptions {
   platform?: NodeJS.Platform
   arch?: string
   isPortable?: boolean
+  isAppImage?: boolean
   onStateChange?: (state: UpdateState) => void
   openExternal?: (url: string) => Promise<void> | void
   fetchFn?: typeof fetch
@@ -155,13 +188,15 @@ export function createUpdateService(options: UpdateServiceOptions): UpdateServic
   const platform = options.platform ?? process.platform
   const arch = options.arch ?? process.arch
   const isPortable = options.isPortable ?? Boolean(process.env.PORTABLE_EXECUTABLE_FILE)
+  const isAppImage = options.isAppImage ?? Boolean(process.env.APPIMAGE)
   const fetchFn = options.fetchFn ?? globalThis.fetch
   const openExternal = options.openExternal ?? (() => undefined)
 
-  // Full silent in-app install is supported on packaged Windows NSIS installs.
-  // Unsigned macOS apps cannot pass Squirrel.Mac signature verification, and portable/dev builds
-  // don't have an NSIS installer target, so those check GitHub Releases and open the installer URL.
-  const canAutoInstall = options.isPackaged && platform === 'win32' && !isPortable
+  // Full silent in-app install is supported on packaged Windows NSIS installs and Linux AppImage builds.
+  // Unsigned macOS apps cannot pass Squirrel.Mac signature verification, and .deb/.rpm/portable/dev builds
+  // don't have an auto-install target, so those check GitHub Releases and open the installer URL.
+  const canAutoInstall =
+    options.isPackaged && ((platform === 'win32' && !isPortable) || (platform === 'linux' && isAppImage))
 
   let state: UpdateState = {
     status: 'idle',

@@ -235,7 +235,7 @@ export function SettingsView() {
   const updateStatus = updateState?.status ?? 'idle'
   const isCheckingUpdate = updateStatus === 'checking'
   const isDownloadingUpdate = updateStatus === 'downloading'
-  const currentVersion = updateState?.currentVersion ?? '1.2.0'
+  const currentVersion = updateState?.currentVersion ?? '1.3.0'
 
   return (
     <div className="flex-1 overflow-y-auto px-6 py-6">

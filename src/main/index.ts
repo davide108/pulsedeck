@@ -1,3 +1,4 @@
+import fs from 'node:fs'
 import path from 'node:path'
 import {
   app,
@@ -254,6 +255,9 @@ function createWindow(repos: Repositories): BrowserWindow {
   restoreBounds = { ...bounds }
 
   const isMac = process.platform === 'darwin'
+  const linuxIconPath =
+    process.platform === 'linux' ? path.join(__dirname, '../../resources/icon.png') : null
+  const windowIcon = linuxIconPath && fs.existsSync(linuxIconPath) ? linuxIconPath : undefined
 
   const win = new BrowserWindow({
     x: bounds.x,
@@ -262,6 +266,7 @@ function createWindow(repos: Repositories): BrowserWindow {
     height: bounds.height,
     minWidth: MIN_WIDTH,
     minHeight: MIN_HEIGHT,
+    ...(windowIcon ? { icon: windowIcon } : {}),
     ...(isMac
       ? {
           titleBarStyle: 'hiddenInset' as const,
