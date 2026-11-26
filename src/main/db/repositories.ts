@@ -657,8 +657,15 @@ export function createRepositories(db: Database.Database) {
       }
 
       const whereSql = conditions.length > 0 ? `WHERE ${conditions.join(' AND ')}` : ''
+      const waveformColumn =
+        filter.includeWaveformPeaks === true ? 't.waveform_peaks' : 'NULL AS waveform_peaks'
       const sql = `
-        SELECT t.*
+        SELECT t.id, t.folder_id, t.file_path, t.file_size, t.file_mtime, t.format,
+               t.title, t.artist, t.album, t.album_artist, t.genre, t.year, t.track_number,
+               t.duration, t.artwork_path, t.bpm, t.bpm_source, t.musical_key, t.camelot_key,
+               t.key_source, t.replaygain_db, t.energy, ${waveformColumn},
+               t.intro_cue_sec, t.outro_cue_sec, t.analysis_status, t.is_missing,
+               t.play_count, t.last_played_at, t.added_at, t.metadata_edited_at
         FROM tracks t
         ${joins.join('\n')}
         ${whereSql}
@@ -1340,7 +1347,11 @@ export function createRepositories(db: Database.Database) {
         showWaveformCues:
           typeof mergedAppearance.showWaveformCues === 'boolean'
             ? mergedAppearance.showWaveformCues
-            : DEFAULT_APPEARANCE_SETTINGS.showWaveformCues
+            : DEFAULT_APPEARANCE_SETTINGS.showWaveformCues,
+        reducedEffects:
+          typeof mergedAppearance.reducedEffects === 'boolean'
+            ? mergedAppearance.reducedEffects
+            : DEFAULT_APPEARANCE_SETTINGS.reducedEffects
       }
 
       const rawLibrary = parsed.library

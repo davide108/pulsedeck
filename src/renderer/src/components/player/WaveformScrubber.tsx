@@ -43,9 +43,34 @@ function resamplePeaks(peaks: number[] | null | undefined, barCount: number): nu
 }
 
 function readCssRgbVar(varName: string, fallback: string): string {
-  if (typeof window === 'undefined') return fallback
+  if (typeof window === 'undefined') return fallback.replace(/\s+/g, ', ')
   const raw = getComputedStyle(document.documentElement).getPropertyValue(varName).trim()
-  return raw || fallback
+  return (raw || fallback).replace(/\s+/g, ', ')
+}
+
+function drawWaveformBars(
+  ctx: CanvasRenderingContext2D,
+  bars: number[],
+  width: number,
+  height: number,
+  fillStyle: string
+): void {
+  const step = width / bars.length
+  const barWidth = Math.max(1.2, step * 0.64)
+  const maxBarHeight = Math.max(8, height - 10)
+  const centerY = height / 2
+  const radius = Math.min(barWidth / 2, 2)
+
+  ctx.fillStyle = fillStyle
+  for (let i = 0; i < bars.length; i++) {
+    const x = i * step + (step - barWidth) / 2
+    const barH = Math.max(3, bars[i] * maxBarHeight)
+    const y = centerY - barH / 2
+
+    ctx.beginPath()
+    ctx.roundRect(x, y, barWidth, barH, radius)
+    ctx.fill()
+  }
 }
 
 export function WaveformScrubber({
@@ -64,12 +89,44 @@ export function WaveformScrubber({
 }: WaveformScrubberProps) {
   const containerRef = useRef<HTMLDivElement>(null)
   const canvasRef = useRef<HTMLCanvasElement>(null)
+  const unplayedLayerRef = useRef<HTMLCanvasElement | null>(null)
+  const playedLayerRef = useRef<HTMLCanvasElement | null>(null)
+  const canvasMetricsRef = useRef({ pixelWidth: 0, pixelHeight: 0, dpr: 1 })
+
   const [width, setWidth] = useState(0)
   const [hoverRatio, setHoverRatio] = useState<number | null>(null)
   const [dragRatio, setDragRatio] = useState<number | null>(null)
+  const [themeColors, setThemeColors] = useState(() => ({
+    accentRgb: readCssRgbVar('--accent-rgb', '99 102 241'),
+    glowRgb: readCssRgbVar('--accent-glow-rgb', '56 189 248')
+  }))
   const isDraggingRef = useRef(false)
 
   const bars = useMemo(() => resamplePeaks(peaks, TARGET_BAR_COUNT), [peaks])
+  const hasRealPeaks = Boolean(peaks && peaks.length > 0)
+  const resolvedAccentRgb = accentColorRgb
+    ? accentColorRgb.trim().replace(/\s+/g, ', ')
+    : themeColors.accentRgb
+
+  useEffect(() => {
+    const syncThemeColors = () => {
+      const nextAccent = readCssRgbVar('--accent-rgb', '99 102 241')
+      const nextGlow = readCssRgbVar('--accent-glow-rgb', '56 189 248')
+      setThemeColors((prev) =>
+        prev.accentRgb === nextAccent && prev.glowRgb === nextGlow
+          ? prev
+          : { accentRgb: nextAccent, glowRgb: nextGlow }
+      )
+    }
+
+    syncThemeColors()
+    const observer = new MutationObserver(syncThemeColors)
+    observer.observe(document.documentElement, {
+      attributes: true,
+      attributeFilter: ['style', 'class']
+    })
+    return () => observer.disconnect()
+  }, [])
 
   useEffect(() => {
     const el = containerRef.current
@@ -90,30 +147,84 @@ export function WaveformScrubber({
         ? Math.max(0, Math.min(1, currentTime / duration))
         : 0
 
+  // Resize main display canvas ONLY when dimensions or DPR change
   useEffect(() => {
     const canvas = canvasRef.current
     if (!canvas || width <= 0 || height <= 0) return
 
     const dpr = Math.min(window.devicePixelRatio || 1, 2)
-    canvas.width = Math.floor(width * dpr)
-    canvas.height = Math.floor(height * dpr)
+    const pixelWidth = Math.floor(width * dpr)
+    const pixelHeight = Math.floor(height * dpr)
+    const prev = canvasMetricsRef.current
+
+    if (
+      prev.pixelWidth !== pixelWidth ||
+      prev.pixelHeight !== pixelHeight ||
+      prev.dpr !== dpr
+    ) {
+      canvas.width = pixelWidth
+      canvas.height = pixelHeight
+      canvasMetricsRef.current = { pixelWidth, pixelHeight, dpr }
+    }
+
+    const ctx = canvas.getContext('2d')
+    if (ctx) {
+      ctx.setTransform(dpr, 0, 0, dpr, 0, 0)
+    }
+  }, [width, height])
+
+  // Rebuild offscreen unplayed and played waveform layers only when peaks, size, DPR, or accent RGB change
+  useEffect(() => {
+    if (width <= 0 || height <= 0) return
+
+    const dpr = Math.min(window.devicePixelRatio || 1, 2)
+    const pixelWidth = Math.floor(width * dpr)
+    const pixelHeight = Math.floor(height * dpr)
+
+    const ensureLayer = (ref: { current: HTMLCanvasElement | null }) => {
+      if (!ref.current) {
+        ref.current = document.createElement('canvas')
+      }
+      const layer = ref.current
+      if (layer.width !== pixelWidth || layer.height !== pixelHeight) {
+        layer.width = pixelWidth
+        layer.height = pixelHeight
+      }
+      const layerCtx = layer.getContext('2d')
+      if (!layerCtx) return null
+      layerCtx.setTransform(dpr, 0, 0, dpr, 0, 0)
+      layerCtx.clearRect(0, 0, width, height)
+      return layerCtx
+    }
+
+    const unplayedCtx = ensureLayer(unplayedLayerRef)
+    if (unplayedCtx) {
+      const unplayedColor = hasRealPeaks
+        ? 'rgba(148, 163, 184, 0.30)'
+        : 'rgba(148, 163, 184, 0.18)'
+      drawWaveformBars(unplayedCtx, bars, width, height, unplayedColor)
+    }
+
+    const playedCtx = ensureLayer(playedLayerRef)
+    if (playedCtx) {
+      drawWaveformBars(playedCtx, bars, width, height, `rgba(${resolvedAccentRgb}, 0.95)`)
+    }
+  }, [width, height, bars, hasRealPeaks, resolvedAccentRgb])
+
+  // Blit cached waveform layers and draw cues/playhead on time or hover updates
+  useEffect(() => {
+    const canvas = canvasRef.current
+    if (!canvas || width <= 0 || height <= 0) return
 
     const ctx = canvas.getContext('2d')
     if (!ctx) return
-    ctx.setTransform(dpr, 0, 0, dpr, 0, 0)
+
     ctx.clearRect(0, 0, width, height)
 
-    const accentRgb = (accentColorRgb || readCssRgbVar('--accent-rgb', '99 102 241')).replace(
-      /\s+/g,
-      ', '
-    )
-    const glowRgb = readCssRgbVar('--accent-glow-rgb', '56 189 248').replace(/\s+/g, ', ')
-
-    const hasRealPeaks = Boolean(peaks && peaks.length > 0)
     const playheadX = effectiveProgress * width
     const hoverX = hoverRatio !== null ? hoverRatio * width : null
 
-    // Intro / Outro cue shading & lines
+    // Intro / Outro cue shading
     const introX =
       showCueMarkers && duration > 0 && introCueSec != null && introCueSec > 0.5
         ? Math.max(0, Math.min(width, (introCueSec / duration) * width))
@@ -132,29 +243,47 @@ export function WaveformScrubber({
       ctx.fillRect(outroX, 0, width - outroX, height)
     }
 
-    const step = width / bars.length
-    const barWidth = Math.max(1.2, step * 0.64)
-    const maxBarHeight = Math.max(8, height - 10)
-    const centerY = height / 2
+    const playedLayer = playedLayerRef.current
+    const unplayedLayer = unplayedLayerRef.current
 
-    for (let i = 0; i < bars.length; i++) {
-      const x = i * step + (step - barWidth) / 2
-      const barCenter = x + barWidth / 2
-      const barH = Math.max(3, bars[i] * maxBarHeight)
-      const y = centerY - barH / 2
-
-      if (barCenter <= playheadX) {
-        ctx.fillStyle = `rgba(${accentRgb}, 0.95)`
-      } else if (hoverX !== null && barCenter <= hoverX) {
-        ctx.fillStyle = `rgba(${glowRgb}, 0.52)`
-      } else {
-        ctx.fillStyle = hasRealPeaks ? 'rgba(148, 163, 184, 0.30)' : 'rgba(148, 163, 184, 0.18)'
-      }
-
-      const radius = Math.min(barWidth / 2, 2)
+    if (playedLayer && playheadX > 0) {
+      ctx.save()
       ctx.beginPath()
-      ctx.roundRect(x, y, barWidth, barH, radius)
-      ctx.fill()
+      ctx.rect(0, 0, playheadX, height)
+      ctx.clip()
+      ctx.drawImage(playedLayer, 0, 0, width, height)
+      ctx.restore()
+    }
+
+    if (unplayedLayer && playheadX < width) {
+      ctx.save()
+      ctx.beginPath()
+      ctx.rect(playheadX, 0, width - playheadX, height)
+      ctx.clip()
+      ctx.drawImage(unplayedLayer, 0, 0, width, height)
+      ctx.restore()
+    }
+
+    if (hoverX !== null && hoverX > playheadX) {
+      const step = width / bars.length
+      const barWidth = Math.max(1.2, step * 0.64)
+      const maxBarHeight = Math.max(8, height - 10)
+      const centerY = height / 2
+      const radius = Math.min(barWidth / 2, 2)
+      const startIndex = Math.max(0, Math.floor(playheadX / step))
+      const endIndex = Math.min(bars.length - 1, Math.ceil(hoverX / step))
+
+      ctx.fillStyle = `rgba(${themeColors.glowRgb}, 0.52)`
+      for (let i = startIndex; i <= endIndex; i++) {
+        const x = i * step + (step - barWidth) / 2
+        const barCenter = x + barWidth / 2
+        if (barCenter <= playheadX || barCenter > hoverX) continue
+        const barH = Math.max(3, bars[i] * maxBarHeight)
+        const y = centerY - barH / 2
+        ctx.beginPath()
+        ctx.roundRect(x, y, barWidth, barH, radius)
+        ctx.fill()
+      }
     }
 
     // Draw cue marker ticks
@@ -199,13 +328,14 @@ export function WaveformScrubber({
     width,
     height,
     bars,
-    peaks,
+    hasRealPeaks,
+    resolvedAccentRgb,
+    themeColors.glowRgb,
     effectiveProgress,
     hoverRatio,
     duration,
     introCueSec,
     outroCueSec,
-    accentColorRgb,
     showCueMarkers
   ])
 

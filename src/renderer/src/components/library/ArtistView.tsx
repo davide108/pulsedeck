@@ -1,4 +1,5 @@
-import { useMemo } from 'react'
+import { useMemo, useRef } from 'react'
+import { useVirtualizer } from '@tanstack/react-virtual'
 import { Play, Users } from 'lucide-react'
 import { ArtworkCover } from '@/components/common/ArtworkCover'
 import { FilterBar } from '@/components/library/FilterBar'
@@ -68,6 +69,16 @@ export function ArtistView() {
     return artists[0]
   }, [artists, selectedArtist])
 
+  const artistListRef = useRef<HTMLDivElement>(null)
+
+  const artistVirtualizer = useVirtualizer({
+    count: artists.length,
+    getScrollElement: () => artistListRef.current,
+    estimateSize: () => 56,
+    gap: 4,
+    overscan: 10
+  })
+
   return (
     <div className="flex h-full flex-col overflow-hidden">
       <FilterBar />
@@ -83,37 +94,57 @@ export function ArtistView() {
       ) : (
         <div className="flex flex-1 overflow-hidden">
           {/* Left Artist Directory */}
-          <div className="w-64 shrink-0 overflow-y-auto border-r border-white/[0.07] bg-surface/35 p-2.5 space-y-1">
-            {artists.map((artist) => {
-              const selected = activeArtist?.name === artist.name
-              return (
-                <button
-                  key={artist.name}
-                  type="button"
-                  onClick={() => setSelectedArtist(artist.name)}
-                  className={`flex w-full items-center gap-2.5 rounded-xl px-2.5 py-2 text-left transition-colors ${
-                    selected
-                      ? 'bg-accent/20 border border-accent/35 text-white'
-                      : 'border border-transparent text-slate-300 hover:bg-white/[0.05] hover:text-white'
-                  }`}
-                >
-                  <ArtworkCover
-                    artworkPath={artist.artworkPath}
-                    alt={artist.name}
-                    className="h-9 w-9"
-                    iconClassName="h-4 w-4"
-                    roundedClassName="rounded-full"
-                  />
-                  <div className="min-w-0 flex-1">
-                    <p className="truncate text-xs font-semibold">{artist.name}</p>
-                    <p className="text-[10px] text-slate-400">
-                      {artist.albums.length} {artist.albums.length === 1 ? 'album' : 'albums'} ·{' '}
-                      {artist.tracks.length} {artist.tracks.length === 1 ? 'track' : 'tracks'}
-                    </p>
-                  </div>
-                </button>
-              )
-            })}
+          <div
+            ref={artistListRef}
+            className="w-64 shrink-0 overflow-y-auto border-r border-white/[0.07] bg-surface/35 p-2.5"
+          >
+            <div
+              style={{
+                height: `${artistVirtualizer.getTotalSize()}px`,
+                width: '100%',
+                position: 'relative'
+              }}
+            >
+              {artistVirtualizer.getVirtualItems().map((virtualRow) => {
+                const artist = artists[virtualRow.index]
+                const selected = activeArtist?.name === artist.name
+                return (
+                  <button
+                    key={artist.name}
+                    type="button"
+                    onClick={() => setSelectedArtist(artist.name)}
+                    style={{
+                      position: 'absolute',
+                      top: 0,
+                      left: 0,
+                      width: '100%',
+                      height: `${virtualRow.size}px`,
+                      transform: `translateY(${virtualRow.start}px)`
+                    }}
+                    className={`flex w-full items-center gap-2.5 rounded-xl px-2.5 py-2 text-left transition-colors ${
+                      selected
+                        ? 'bg-accent/20 border border-accent/35 text-white'
+                        : 'border border-transparent text-slate-300 hover:bg-white/[0.05] hover:text-white'
+                    }`}
+                  >
+                    <ArtworkCover
+                      artworkPath={artist.artworkPath}
+                      alt={artist.name}
+                      className="h-9 w-9"
+                      iconClassName="h-4 w-4"
+                      roundedClassName="rounded-full"
+                    />
+                    <div className="min-w-0 flex-1">
+                      <p className="truncate text-xs font-semibold">{artist.name}</p>
+                      <p className="text-[10px] text-slate-400">
+                        {artist.albums.length} {artist.albums.length === 1 ? 'album' : 'albums'} ·{' '}
+                        {artist.tracks.length} {artist.tracks.length === 1 ? 'track' : 'tracks'}
+                      </p>
+                    </div>
+                  </button>
+                )
+              })}
+            </div>
           </div>
 
           {/* Right Artist Detail */}

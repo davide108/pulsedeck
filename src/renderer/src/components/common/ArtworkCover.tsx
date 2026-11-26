@@ -39,6 +39,7 @@ export function ArtworkCover({
       src={url}
       alt={alt}
       loading="lazy"
+      decoding="async"
       onError={() => setFailed(true)}
       className={`shrink-0 object-cover border border-white/10 bg-surface ${roundedClassName} ${className}`}
     />

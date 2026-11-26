@@ -36,8 +36,13 @@ export function useDynamicTheme(): void {
   const customAccentGlowRgb = usePlayerStore(
     (s) => s.appearanceSettings.customAccentGlowRgb
   )
+  const reducedEffects = usePlayerStore((s) => s.appearanceSettings.reducedEffects)
   const currentAccentRef = useRef<[number, number, number]>([99, 102, 241])
   const currentGlowRef = useRef<[number, number, number]>([56, 189, 248])
+
+  useEffect(() => {
+    document.documentElement.classList.toggle('reduced-effects', reducedEffects)
+  }, [reducedEffects])
 
   useEffect(() => {
     let cancelled = false
@@ -48,6 +53,15 @@ export function useDynamicTheme(): void {
       const startGlow = [...currentGlowRef.current] as [number, number, number]
       const endAccent = parseRgbTuple(targetAccentStr, [99, 102, 241])
       const endGlow = parseRgbTuple(targetGlowStr, [56, 189, 248])
+
+      if (reducedEffects) {
+        currentAccentRef.current = endAccent
+        currentGlowRef.current = endGlow
+        const root = document.documentElement
+        root.style.setProperty('--accent-rgb', `${endAccent[0]} ${endAccent[1]} ${endAccent[2]}`)
+        root.style.setProperty('--accent-glow-rgb', `${endGlow[0]} ${endGlow[1]} ${endGlow[2]}`)
+        return
+      }
 
       const durationMs = 340
       const startTime = performance.now()
@@ -104,5 +118,5 @@ export function useDynamicTheme(): void {
         cancelAnimationFrame(animId)
       }
     }
-  }, [artworkPath, dynamicThemeEnabled, customAccentRgb, customAccentGlowRgb])
+  }, [artworkPath, dynamicThemeEnabled, customAccentRgb, customAccentGlowRgb, reducedEffects])
 }

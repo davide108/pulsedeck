@@ -140,6 +140,21 @@ function buildEffectiveFilter(state: {
   return base
 }
 
+function isUnfilteredDefaultQuery(filter: TrackQueryFilter): boolean {
+  return (
+    !filter.search &&
+    filter.genre == null &&
+    filter.camelotKey == null &&
+    filter.bpmMin == null &&
+    filter.bpmMax == null &&
+    filter.folderId == null &&
+    filter.playlistId == null &&
+    filter.smartView == null &&
+    !filter.sortBy &&
+    !filter.includeMissing
+  )
+}
+
 export const useLibraryStore = create<LibraryState>((set, get) => {
   const runTrackMutation = async (
     mutate: () => Promise<TrackRecord | null>,
@@ -234,6 +249,17 @@ export const useLibraryStore = create<LibraryState>((set, get) => {
   refreshAll: async () => {
     try {
       const effectiveFilter = buildEffectiveFilter(get())
+      if (isUnfilteredDefaultQuery(effectiveFilter)) {
+        const [folders, playlists, facets, tracks] = await Promise.all([
+          window.api.folders.list(),
+          window.api.playlists.list(),
+          window.api.tracks.getFacets(),
+          window.api.tracks.query({ includeMissing: false })
+        ])
+        set({ folders, playlists, facets, tracks, allTracks: tracks })
+        return
+      }
+
       const [folders, playlists, facets, tracks, allTracks] = await Promise.all([
         window.api.folders.list(),
         window.api.playlists.list(),

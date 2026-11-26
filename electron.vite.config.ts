@@ -10,6 +10,7 @@ export default defineConfig({
       }
     },
     build: {
+      minify: true,
       externalizeDeps: true,
       rolldownOptions: {
         external: ['better-sqlite3', 'music-metadata', 'chokidar']
@@ -23,6 +24,7 @@ export default defineConfig({
       }
     },
     build: {
+      minify: true,
       externalizeDeps: true,
       rolldownOptions: {
         external: ['better-sqlite3', 'music-metadata', 'chokidar']
@@ -35,6 +37,10 @@ export default defineConfig({
         '@': resolve(__dirname, 'src/renderer/src'),
         '@shared': resolve(__dirname, 'src/shared')
       }
+    },
+    build: {
+      minify: true,
+      cssMinify: true
     },
     plugins: [react()]
   }

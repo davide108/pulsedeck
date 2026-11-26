@@ -69,6 +69,7 @@ Download the latest installers from the [**Releases**](https://github.com/davide
 ### Background Audio Analysis, Visuals & Automatic Updates
 - **Non-Blocking DSP Analyzer:** Automatically computes BPM, Camelot key (`1A–12B`), ReplayGain loudness normalization, Energy score, 200-bar clickable waveforms, and intro/outro silence cues.
 - **Dynamic Glassmorphic UI:** Accent colors adapt to the active track's album art (or pick your own preset in Settings), paired with a 60fps frequency spectrum visualizer and an always-on-top **Mini-Player** mode.
+- **Low-End PC & Large-Library Performance:** Virtualized Track, Album, and Artist views, code-split lazy views, on-demand waveform peak loading, deduplicated 640px artwork caching, idle DSP worker cleanup, and a **Performance / Reduced Effects Mode** toggle in **Settings → Appearance & Interface** (replaces glass blur with solid surfaces, disables ambient glows, and caps visualizer FPS).
 - **Automatic GitHub Updates:** Open **Settings → Software Updates** (or let PulseDeck check quietly on startup) to check GitHub Releases for new versions, download with live progress, and restart to install automatically on **Windows installer** and **Linux AppImage** builds (or jump straight to the matching direct download link for macOS, Linux `.deb`/`.rpm`, and Windows portable).
 
 ---

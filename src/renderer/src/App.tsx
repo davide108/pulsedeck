@@ -1,35 +1,58 @@
-import { useEffect } from 'react'
+import { Suspense, lazy, useEffect } from 'react'
 import { AlertCircle, Info, X } from 'lucide-react'
-import { MiniPlayer } from '@/components/layout/MiniPlayer'
 import { Sidebar } from '@/components/layout/Sidebar'
 import { TitleBar } from '@/components/layout/TitleBar'
-import { AlbumGrid } from '@/components/library/AlbumGrid'
-import { ArtistView } from '@/components/library/ArtistView'
 import { FilterBar } from '@/components/library/FilterBar'
-import { FolderManager } from '@/components/library/FolderManager'
-import { PlaylistView } from '@/components/library/PlaylistView'
-import { TrackInfoModal } from '@/components/library/TrackInfoModal'
 import { TrackTable } from '@/components/library/TrackTable'
-import { AutoDjQueuePanel } from '@/components/player/AutoDjQueuePanel'
-import { DualDeckView } from '@/components/player/DualDeckView'
-import { NowPlayingOverlay } from '@/components/player/NowPlayingOverlay'
 import { PlayerBar } from '@/components/player/PlayerBar'
-import { SettingsView } from '@/components/settings/SettingsView'
 import { useDynamicTheme } from '@/hooks/useDynamicTheme'
 import { useMediaKeys } from '@/hooks/useMediaKeys'
 import { useLibraryStore } from '@/store/useLibraryStore'
 import { usePlayerStore } from '@/store/usePlayerStore'
+
+const MiniPlayer = lazy(() =>
+  import('@/components/layout/MiniPlayer').then((m) => ({ default: m.MiniPlayer }))
+)
+const AlbumGrid = lazy(() =>
+  import('@/components/library/AlbumGrid').then((m) => ({ default: m.AlbumGrid }))
+)
+const ArtistView = lazy(() =>
+  import('@/components/library/ArtistView').then((m) => ({ default: m.ArtistView }))
+)
+const FolderManager = lazy(() =>
+  import('@/components/library/FolderManager').then((m) => ({ default: m.FolderManager }))
+)
+const PlaylistView = lazy(() =>
+  import('@/components/library/PlaylistView').then((m) => ({ default: m.PlaylistView }))
+)
+const TrackInfoModal = lazy(() =>
+  import('@/components/library/TrackInfoModal').then((m) => ({ default: m.TrackInfoModal }))
+)
+const AutoDjQueuePanel = lazy(() =>
+  import('@/components/player/AutoDjQueuePanel').then((m) => ({ default: m.AutoDjQueuePanel }))
+)
+const DualDeckView = lazy(() =>
+  import('@/components/player/DualDeckView').then((m) => ({ default: m.DualDeckView }))
+)
+const NowPlayingOverlay = lazy(() =>
+  import('@/components/player/NowPlayingOverlay').then((m) => ({ default: m.NowPlayingOverlay }))
+)
+const SettingsView = lazy(() =>
+  import('@/components/settings/SettingsView').then((m) => ({ default: m.SettingsView }))
+)
 
 export function App() {
   const activeView = useLibraryStore((s) => s.activeView)
   const allTracks = useLibraryStore((s) => s.allTracks)
   const playlists = useLibraryStore((s) => s.playlists)
   const isInitialized = useLibraryStore((s) => s.isInitialized)
+  const hasEditingTrack = useLibraryStore((s) => s.editingTrack !== null)
   const libraryError = useLibraryStore((s) => s.errorMessage)
   const clearLibraryError = useLibraryStore((s) => s.clearError)
   const initLibrary = useLibraryStore((s) => s.init)
 
   const isMiniPlayer = usePlayerStore((s) => s.isMiniPlayer)
+  const nowPlayingOpen = usePlayerStore((s) => s.nowPlayingOpen)
   const toasts = usePlayerStore((s) => s.toasts)
   const dismissToast = usePlayerStore((s) => s.dismissToast)
   const initPlayer = usePlayerStore((s) => s.init)
@@ -66,7 +89,11 @@ export function App() {
   }, [isInitialized, allTracks, playlists, syncLibraryTracks])
 
   if (isMiniPlayer) {
-    return <MiniPlayer />
+    return (
+      <Suspense fallback={null}>
+        <MiniPlayer />
+      </Suspense>
+    )
   }
 
   const renderMainView = () => {
@@ -112,13 +139,23 @@ export function App() {
         <Sidebar />
 
         <main className="relative flex flex-1 flex-col overflow-hidden bg-obsidian/45">
-          {renderMainView()}
+          <Suspense fallback={<div className="flex-1 bg-obsidian" />}>
+            {renderMainView()}
+          </Suspense>
         </main>
       </div>
 
       <PlayerBar />
-      <NowPlayingOverlay />
-      <TrackInfoModal />
+      {nowPlayingOpen && (
+        <Suspense fallback={null}>
+          <NowPlayingOverlay />
+        </Suspense>
+      )}
+      {hasEditingTrack && (
+        <Suspense fallback={null}>
+          <TrackInfoModal />
+        </Suspense>
+      )}
 
       {/* Non-blocking Toasts */}
       {(toasts.length > 0 || libraryError) && (

@@ -1004,6 +1004,20 @@ export function SettingsView() {
               />
             }
           />
+
+          <SettingRow
+            title="Performance / Reduced Effects Mode"
+            description="Disables glass blur, ambient glows, and caps visualizer FPS for smoother performance on low-end PCs."
+            control={
+              <ToggleSwitch
+                checked={appearanceSettings.reducedEffects}
+                onChange={(reducedEffects) =>
+                  updateAppearanceSettings({ reducedEffects })
+                }
+                label="Toggle performance reduced effects mode"
+              />
+            }
+          />
         </SettingsSection>
 
         {/* 6. Shortcuts & Reset */}

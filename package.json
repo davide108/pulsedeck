@@ -27,13 +27,21 @@
     "directories": {
       "output": "dist"
     },
+    "compression": "maximum",
+    "electronLanguages": [
+      "en-US"
+    ],
     "asar": true,
     "asarUnpack": [
       "**/node_modules/better-sqlite3/**"
     ],
     "files": [
       "out/**",
-      "resources/**"
+      "resources/**",
+      "!**/node_modules/better-sqlite3/deps/**",
+      "!**/node_modules/better-sqlite3/src/**",
+      "!**/node_modules/better-sqlite3/build/Release/obj/**",
+      "!**/node_modules/*/{CHANGELOG.md,README.md,README,readme.md,readme,LICENSE.md,*.map}"
     ],
     "publish": [
       {
@@ -84,16 +92,14 @@
     }
   },
   "dependencies": {
-    "@tanstack/react-virtual": "^3.14.28",
     "better-sqlite3": "12.11.1",
     "chokidar": "^4.0.3",
     "electron-updater": "^6.8.11",
-    "lucide-react": "^1.77.0",
-    "music-metadata": "^12.8.0",
-    "zustand": "^5.1.0"
+    "music-metadata": "^12.8.0"
   },
   "devDependencies": {
     "@electron/rebuild": "^4.2.1",
+    "@tanstack/react-virtual": "^3.14.28",
     "@types/better-sqlite3": "^7.6.13",
     "@types/node": "^24.0.0",
     "@types/react": "^19.3.0",
@@ -104,12 +110,14 @@
     "electron": "42.11.18",
     "electron-builder": "^26.18.0",
     "electron-vite": "^6.0.0",
+    "lucide-react": "^1.77.0",
     "postcss": "^8.5.33",
     "react": "^19.3.1",
     "react-dom": "^19.3.1",
     "tailwindcss": "^3.4.19",
     "typescript": "^5.9.3",
     "vite": "^8.3.8",
-    "vitest": "^5.1.1"
+    "vitest": "^5.1.1",
+    "zustand": "^5.1.0"
   }
 }

@@ -485,6 +485,7 @@ describe('database & repositories', () => {
       expect(defaults.audio.limiterEnabled).toBe(true)
       expect(defaults.audio.seekStepSec).toBe(5)
       expect(defaults.appearance.dynamicThemeEnabled).toBe(true)
+      expect(defaults.appearance.reducedEffects).toBe(false)
       expect(defaults.library.autoAnalyzeEnabled).toBe(true)
       expect(defaults.library.autoFetchLyrics).toBe(true)
 
@@ -501,7 +502,8 @@ describe('database & repositories', () => {
         dynamicThemeEnabled: false,
         customAccentRgb: '16 185 129',
         customAccentGlowRgb: '52 211 153',
-        showWaveformCues: false
+        showWaveformCues: false,
+        reducedEffects: false
       })
       repos.settings.set('library', {
         autoAnalyzeEnabled: false,
@@ -524,7 +526,8 @@ describe('database & repositories', () => {
         dynamicThemeEnabled: false,
         customAccentRgb: '16 185 129',
         customAccentGlowRgb: '52 211 153',
-        showWaveformCues: false
+        showWaveformCues: false,
+        reducedEffects: false
       })
       expect(reloaded.library).toEqual({
         autoAnalyzeEnabled: false,

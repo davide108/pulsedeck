@@ -1,4 +1,5 @@
-import { useMemo } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
+import { useVirtualizer } from '@tanstack/react-virtual'
 import { ArrowLeft, Disc, Play } from 'lucide-react'
 import { ArtworkCover } from '@/components/common/ArtworkCover'
 import { FilterBar } from '@/components/library/FilterBar'
@@ -16,6 +17,14 @@ interface AlbumGroup {
   artworkPath: string | null
   tracks: TrackRecord[]
   totalDuration: number
+}
+
+function getAlbumGridColumns(width: number): number {
+  if (width >= 1280) return 6
+  if (width >= 1024) return 5
+  if (width >= 768) return 4
+  if (width >= 640) return 3
+  return 2
 }
 
 export function AlbumGrid() {
@@ -68,6 +77,56 @@ export function AlbumGrid() {
     const targetKey = `${selectedAlbum.album.toLowerCase()}::${selectedAlbum.artist.toLowerCase()}`
     return albums.find((g) => g.key === targetKey) ?? null
   }, [albums, selectedAlbum])
+
+  const parentRef = useRef<HTMLDivElement>(null)
+  const [containerWidth, setContainerWidth] = useState<number>(() =>
+    typeof window !== 'undefined' ? window.innerWidth : 1024
+  )
+
+  const showGrid = !activeGroup && albums.length > 0
+
+  useEffect(() => {
+    if (!showGrid) return
+    const el = parentRef.current
+    if (!el) return
+
+    const updateWidth = (width: number) => {
+      if (width > 0) {
+        setContainerWidth((prev) => (prev === width ? prev : width))
+      }
+    }
+
+    updateWidth(el.clientWidth)
+
+    if (typeof ResizeObserver === 'undefined') return
+    const observer = new ResizeObserver((entries) => {
+      for (const entry of entries) {
+        updateWidth(el.clientWidth || Math.round(entry.contentRect.width))
+      }
+    })
+    observer.observe(el)
+    return () => observer.disconnect()
+  }, [showGrid])
+
+  const columns = getAlbumGridColumns(containerWidth)
+  const rowCount = Math.ceil(albums.length / columns)
+  const estimatedRowHeight = useMemo(() => {
+    const innerWidth = Math.max(240, containerWidth - 48)
+    const cardWidth = Math.max(120, (innerWidth - (columns - 1) * 16) / columns)
+    return Math.round(cardWidth + 60)
+  }, [containerWidth, columns])
+
+  const rowVirtualizer = useVirtualizer({
+    count: rowCount,
+    getScrollElement: () => parentRef.current,
+    estimateSize: () => estimatedRowHeight,
+    gap: 16,
+    overscan: 4
+  })
+
+  useEffect(() => {
+    rowVirtualizer.measure()
+  }, [rowVirtualizer, columns, estimatedRowHeight])
 
   if (activeGroup) {
     return (
@@ -136,49 +195,76 @@ export function AlbumGrid() {
           </p>
         </div>
       ) : (
-        <div className="flex-1 overflow-y-auto p-6">
-          <div className="grid grid-cols-2 gap-4 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6">
-            {albums.map((group) => (
-              <div
-                key={group.key}
-                onClick={() =>
-                  setSelectedAlbum({ album: group.album, artist: group.artist })
-                }
-                className="group cursor-pointer rounded-2xl glass-panel p-3 transition-all hover:border-accent/40 hover:bg-white/[0.06]"
-              >
-                <div className="relative aspect-square w-full overflow-hidden rounded-xl">
-                  <ArtworkCover
-                    artworkPath={group.artworkPath}
-                    alt={group.album}
-                    className="h-full w-full"
-                    iconClassName="h-10 w-10"
-                    roundedClassName="rounded-xl"
-                  />
-                  <button
-                    type="button"
-                    onClick={(e) => {
-                      e.stopPropagation()
-                      if (group.tracks[0]) {
-                        void playTrack(group.tracks[0], group.tracks)
+        <div ref={parentRef} className="flex-1 overflow-y-auto p-6">
+          <div
+            style={{
+              height: `${rowVirtualizer.getTotalSize()}px`,
+              width: '100%',
+              position: 'relative'
+            }}
+          >
+            {rowVirtualizer.getVirtualItems().map((virtualRow) => {
+              const startIdx = virtualRow.index * columns
+              const rowAlbums = albums.slice(startIdx, startIdx + columns)
+              return (
+                <div
+                  key={virtualRow.key}
+                  data-index={virtualRow.index}
+                  ref={rowVirtualizer.measureElement}
+                  style={{
+                    position: 'absolute',
+                    top: 0,
+                    left: 0,
+                    width: '100%',
+                    transform: `translateY(${virtualRow.start}px)`,
+                    gridTemplateColumns: `repeat(${columns}, minmax(0, 1fr))`
+                  }}
+                  className="grid gap-4"
+                >
+                  {rowAlbums.map((group) => (
+                    <div
+                      key={group.key}
+                      onClick={() =>
+                        setSelectedAlbum({ album: group.album, artist: group.artist })
                       }
-                    }}
-                    title={`Play ${group.album}`}
-                    className="absolute right-2.5 bottom-2.5 flex h-10 w-10 translate-y-2 items-center justify-center rounded-full bg-accent text-white opacity-0 shadow-glow transition-all group-hover:translate-y-0 group-hover:opacity-100 hover:scale-105"
-                  >
-                    <Play className="ml-0.5 h-4 w-4" />
-                  </button>
-                </div>
+                      className="group cursor-pointer rounded-2xl glass-panel p-3 transition-all hover:border-accent/40 hover:bg-white/[0.06]"
+                    >
+                      <div className="relative aspect-square w-full overflow-hidden rounded-xl">
+                        <ArtworkCover
+                          artworkPath={group.artworkPath}
+                          alt={group.album}
+                          className="h-full w-full"
+                          iconClassName="h-10 w-10"
+                          roundedClassName="rounded-xl"
+                        />
+                        <button
+                          type="button"
+                          onClick={(e) => {
+                            e.stopPropagation()
+                            if (group.tracks[0]) {
+                              void playTrack(group.tracks[0], group.tracks)
+                            }
+                          }}
+                          title={`Play ${group.album}`}
+                          className="absolute right-2.5 bottom-2.5 flex h-10 w-10 translate-y-2 items-center justify-center rounded-full bg-accent text-white opacity-0 shadow-glow transition-all group-hover:translate-y-0 group-hover:opacity-100 hover:scale-105"
+                        >
+                          <Play className="ml-0.5 h-4 w-4" />
+                        </button>
+                      </div>
 
-                <div className="mt-2.5 min-w-0">
-                  <p className="truncate text-xs font-semibold text-white">{group.album}</p>
-                  <p className="mt-0.5 truncate text-[11px] text-slate-400">{group.artist}</p>
-                  <p className="mt-1 font-mono text-[10px] text-slate-500">
-                    {group.tracks.length} {group.tracks.length === 1 ? 'track' : 'tracks'}
-                    {group.year ? ` · ${group.year}` : ''}
-                  </p>
+                      <div className="mt-2.5 min-w-0">
+                        <p className="truncate text-xs font-semibold text-white">{group.album}</p>
+                        <p className="mt-0.5 truncate text-[11px] text-slate-400">{group.artist}</p>
+                        <p className="mt-1 font-mono text-[10px] text-slate-500">
+                          {group.tracks.length} {group.tracks.length === 1 ? 'track' : 'tracks'}
+                          {group.year ? ` · ${group.year}` : ''}
+                        </p>
+                      </div>
+                    </div>
+                  ))}
                 </div>
-              </div>
-            ))}
+              )
+            })}
           </div>
         </div>
       )}

@@ -145,6 +145,7 @@ export interface TrackQueryFilter {
   playlistId?: number | null
   smartView?: SmartViewId | null
   includeMissing?: boolean
+  includeWaveformPeaks?: boolean
   sortBy?:
     | 'title'
     | 'artist'
@@ -306,6 +307,7 @@ export interface AppearanceSettings {
   customAccentRgb: string
   customAccentGlowRgb: string
   showWaveformCues: boolean
+  reducedEffects: boolean
 }
 
 export interface LibrarySettings {
@@ -426,7 +428,8 @@ export const DEFAULT_APPEARANCE_SETTINGS: AppearanceSettings = {
   dynamicThemeEnabled: true,
   customAccentRgb: '99 102 241',
   customAccentGlowRgb: '56 189 248',
-  showWaveformCues: true
+  showWaveformCues: true,
+  reducedEffects: false
 }
 
 export const DEFAULT_LIBRARY_SETTINGS: LibrarySettings = {

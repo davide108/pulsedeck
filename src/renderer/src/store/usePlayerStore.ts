@@ -104,6 +104,33 @@ let scheduler: TransitionScheduler | null = null
 let analysisManager: AnalysisManager | null = null
 let rafId: number | null = null
 let volumePersistTimer: ReturnType<typeof setTimeout> | null = null
+let lastTelemetryCommitMs = 0
+let wasTelemetryHidden = false
+
+const MAX_WAVEFORM_PEAKS_CACHE = 24
+const waveformPeaksCache = new Map<number, number[]>()
+const waveformPeaksInFlight = new Map<number, Promise<number[] | null>>()
+
+function getCachedWaveformPeaks(trackId: number): number[] | undefined {
+  const hit = waveformPeaksCache.get(trackId)
+  if (hit !== undefined) {
+    waveformPeaksCache.delete(trackId)
+    waveformPeaksCache.set(trackId, hit)
+  }
+  return hit
+}
+
+function setCachedWaveformPeaks(trackId: number, peaks: number[]): void {
+  if (waveformPeaksCache.has(trackId)) {
+    waveformPeaksCache.delete(trackId)
+  } else if (waveformPeaksCache.size >= MAX_WAVEFORM_PEAKS_CACHE) {
+    const oldestKey = waveformPeaksCache.keys().next().value
+    if (oldestKey !== undefined) {
+      waveformPeaksCache.delete(oldestKey)
+    }
+  }
+  waveformPeaksCache.set(trackId, peaks)
+}
 
 interface PlayerState {
   activeTrack: TrackRecord | null
@@ -206,14 +233,106 @@ interface PlayerState {
 }
 
 export const usePlayerStore = create<PlayerState>((set, get) => {
+  const applyHydratedPeaksToState = (trackId: number, peaks: number[]) => {
+    set((state) => {
+      let changed = false
+      let nextActive = state.activeTrack
+      if (nextActive && nextActive.id === trackId && nextActive.waveformPeaks === null) {
+        nextActive = { ...nextActive, waveformPeaks: peaks }
+        changed = true
+      }
+
+      let nextDeckA = state.telemetry.decks.A
+      if (
+        nextDeckA.track &&
+        nextDeckA.track.id === trackId &&
+        nextDeckA.track.waveformPeaks === null
+      ) {
+        nextDeckA = { ...nextDeckA, track: { ...nextDeckA.track, waveformPeaks: peaks } }
+        changed = true
+      }
+
+      let nextDeckB = state.telemetry.decks.B
+      if (
+        nextDeckB.track &&
+        nextDeckB.track.id === trackId &&
+        nextDeckB.track.waveformPeaks === null
+      ) {
+        nextDeckB = { ...nextDeckB, track: { ...nextDeckB.track, waveformPeaks: peaks } }
+        changed = true
+      }
+
+      if (!changed) return state
+      return {
+        activeTrack: nextActive,
+        telemetry: {
+          ...state.telemetry,
+          decks: {
+            A: nextDeckA,
+            B: nextDeckB
+          }
+        }
+      }
+    })
+  }
+
+  const requestWaveformPeaks = (trackId: number): Promise<number[] | null> => {
+    const cached = getCachedWaveformPeaks(trackId)
+    if (cached !== undefined) {
+      return Promise.resolve(cached)
+    }
+
+    const existing = waveformPeaksInFlight.get(trackId)
+    if (existing) return existing
+
+    if (typeof window === 'undefined' || !window.api?.tracks?.getById) {
+      return Promise.resolve(null)
+    }
+
+    const req = window.api.tracks
+      .getById(trackId)
+      .then((fullTrack) => {
+        const peaks = fullTrack?.waveformPeaks ?? null
+        if (peaks !== null) {
+          setCachedWaveformPeaks(trackId, peaks)
+          applyHydratedPeaksToState(trackId, peaks)
+        }
+        return peaks
+      })
+      .catch(() => null)
+      .finally(() => {
+        waveformPeaksInFlight.delete(trackId)
+      })
+
+    waveformPeaksInFlight.set(trackId, req)
+    return req
+  }
+
+  const hydrateTrackPeaks = (track: TrackRecord | null): TrackRecord | null => {
+    if (!track) return null
+    if (track.waveformPeaks !== null) {
+      setCachedWaveformPeaks(track.id, track.waveformPeaks)
+      return track
+    }
+    const cached = getCachedWaveformPeaks(track.id)
+    if (cached !== undefined) {
+      return { ...track, waveformPeaks: cached }
+    }
+    if (track.analysisStatus === 'done') {
+      void requestWaveformPeaks(track.id)
+    }
+    return track
+  }
+
   const stopTelemetryLoop = () => {
     if (rafId !== null) {
       cancelAnimationFrame(rafId)
       rafId = null
     }
+    lastTelemetryCommitMs = 0
   }
 
-  const syncTelemetryOnce = (): boolean => {
+  const syncTelemetryOnce = (force = true): boolean => {
     if (!engine) return false
     const snap = engine.getTelemetry()
     const isRunningStatus = (status: DeckTelemetry['status']): boolean =>
@@ -231,21 +350,71 @@ export const usePlayerStore = create<PlayerState>((set, get) => {
     const anyDeckPlaying = isPlayingStatus(deckA.status) || isPlayingStatus(deckB.status)
     const anyDeckLoading = deckA.status === 'loading' || deckB.status === 'loading'
 
+    const prevState = get()
     const nextIsPlaying = anyDeckPlaying
       ? true
       : anyDeckLoading
-        ? get().isPlaying
+        ? prevState.isPlaying
         : false
 
-    const activeDeckTrack = snap.decks[snap.activeDeckId].track
+    const hydratedDeckATrack = hydrateTrackPeaks(deckA.track)
+    const hydratedDeckBTrack = hydrateTrackPeaks(deckB.track)
+    const hydratedActiveDeckTrack =
+      snap.activeDeckId === 'A' ? hydratedDeckATrack : hydratedDeckBTrack
     const nextActiveTrack =
-      activeDeckTrack !== null
-        ? activeDeckTrack
+      hydratedActiveDeckTrack !== null
+        ? hydratedActiveDeckTrack
         : deckA.track === null && deckB.track === null
           ? null
-          : get().activeTrack
+          : hydrateTrackPeaks(prevState.activeTrack)
 
-    set({ telemetry: snap, isPlaying: nextIsPlaying, activeTrack: nextActiveTrack })
+    const isHidden = typeof document !== 'undefined' && document.hidden
+    const returnedFromHidden = wasTelemetryHidden && !isHidden
+    wasTelemetryHidden = isHidden
+
+    const prevSnap = prevState.telemetry
+    const importantChanged =
+      force ||
+      returnedFromHidden ||
+      nextIsPlaying !== prevState.isPlaying ||
+      snap.activeDeckId !== prevSnap.activeDeckId ||
+      snap.transition.active !== prevSnap.transition.active ||
+      deckA.status !== prevSnap.decks.A.status ||
+      deckB.status !== prevSnap.decks.B.status ||
+      (hydratedDeckATrack?.id ?? null) !== (prevSnap.decks.A.track?.id ?? null) ||
+      (hydratedDeckBTrack?.id ?? null) !== (prevSnap.decks.B.track?.id ?? null) ||
+      (nextActiveTrack?.id ?? null) !== (prevState.activeTrack?.id ?? null) ||
+      (hydratedDeckATrack?.waveformPeaks !== null) !==
+        (prevSnap.decks.A.track?.waveformPeaks !== null) ||
+      (hydratedDeckBTrack?.waveformPeaks !== null) !==
+        (prevSnap.decks.B.track?.waveformPeaks !== null)
+
+    const nowMs = typeof performance !== 'undefined' ? performance.now() : Date.now()
+    const minIntervalMs =
+      isHidden && !snap.transition.active ? 500 : snap.transition.active ? 40 : 66
+
+    if (importantChanged || nowMs - lastTelemetryCommitMs >= minIntervalMs) {
+      lastTelemetryCommitMs = nowMs
+      const hydratedSnap: EngineTelemetrySnapshot = {
+        ...snap,
+        decks: {
+          A:
+            hydratedDeckATrack === deckA.track
+              ? deckA
+              : { ...deckA, track: hydratedDeckATrack },
+          B:
+            hydratedDeckBTrack === deckB.track
+              ? deckB
+              : { ...deckB, track: hydratedDeckBTrack }
+        }
+      }
+      set({
+        telemetry: hydratedSnap,
+        isPlaying: nextIsPlaying,
+        activeTrack: nextActiveTrack
+      })
+    }
+
     return anyDeckRunning
   }
 
@@ -253,7 +422,7 @@ export const usePlayerStore = create<PlayerState>((set, get) => {
     if (rafId !== null) return
     const tick = () => {
       rafId = null
-      const keepGoing = syncTelemetryOnce()
+      const keepGoing = syncTelemetryOnce(false)
       if (keepGoing) {
         rafId = requestAnimationFrame(tick)
       }
@@ -421,6 +590,8 @@ export const usePlayerStore = create<PlayerState>((set, get) => {
 
       return () => {
         stopTelemetryLoop()
+        waveformPeaksInFlight.clear()
+        wasTelemetryHidden = false
         if (volumePersistTimer) {
           clearTimeout(volumePersistTimer)
           volumePersistTimer = null
@@ -465,13 +636,17 @@ export const usePlayerStore = create<PlayerState>((set, get) => {
     },
 
     refreshActiveTrack: (track) => {
+      if (track.waveformPeaks !== null) {
+        setCachedWaveformPeaks(track.id, track.waveformPeaks)
+      }
+      const hydrated = hydrateTrackPeaks(track) ?? track
       set((state) => {
         const hasTrack = state.libraryTracks.some((t) => t.id === track.id)
         const nextLibraryTracks = hasTrack
           ? state.libraryTracks.map((t) => (t.id === track.id ? track : t))
           : state.libraryTracks
         const nextActiveTrack =
-          state.activeTrack?.id === track.id ? track : state.activeTrack
+          state.activeTrack?.id === hydrated.id ? hydrated : state.activeTrack
         return {
           libraryTracks: nextLibraryTracks,
           activeTrack: nextActiveTrack
@@ -488,8 +663,9 @@ export const usePlayerStore = create<PlayerState>((set, get) => {
 
     playTrack: async (track, contextTracks) => {
       if (!scheduler) return
+      const hydratedTrack = hydrateTrackPeaks(track) ?? track
       set({ isPlaying: true })
-      const ok = await scheduler.onManualTrackSelect(track, contextTracks)
+      const ok = await scheduler.onManualTrackSelect(hydratedTrack, contextTracks)
       if (!ok) {
         syncTelemetryOnce()
         return
@@ -501,8 +677,9 @@ export const usePlayerStore = create<PlayerState>((set, get) => {
 
     crossfadeToTrack: async (track, contextTracks) => {
       if (!scheduler) return
+      const hydratedTrack = hydrateTrackPeaks(track) ?? track
       set({ isPlaying: true })
-      const ok = await scheduler.crossfadeToManualTrack(track, contextTracks)
+      const ok = await scheduler.crossfadeToManualTrack(hydratedTrack, contextTracks)
       if (!ok) {
         syncTelemetryOnce()
         return
@@ -803,8 +980,9 @@ export const usePlayerStore = create<PlayerState>((set, get) => {
 
     loadTrackToDeck: async (deckId, track, options) => {
       if (!engine) return
+      const hydratedTrack = hydrateTrackPeaks(track) ?? track
       // Push immediate loading state into telemetry and start RAF loop if needed
-      const ok = await engine.loadTrackToDeck(deckId, track, options)
+      const ok = await engine.loadTrackToDeck(deckId, hydratedTrack, options)
       const keepRunning = syncTelemetryOnce()
       if (ok) {
         const snap = engine.getTelemetry()

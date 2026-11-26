@@ -16,6 +16,7 @@ type AnalyzedListener = (payload: TrackAnalysisPayload) => void
 const TARGET_SAMPLE_RATE = 22050
 const FETCH_BATCH_LIMIT = 50
 const WORKER_TIMEOUT_MS = 45_000
+const IDLE_DISPOSE_MS = 20_000
 
 /**
  * Mixes multi-channel AudioBuffer down to mono and resamples to 22050 Hz,
@@ -99,6 +100,7 @@ export class AnalysisManager {
   private disposed = false
   private paused = false
   private kickTimer: ReturnType<typeof setTimeout> | null = null
+  private idleDisposeTimer: ReturnType<typeof setTimeout> | null = null
 
   private progress: AnalysisProgress = {
     running: false,
@@ -142,6 +144,30 @@ export class AnalysisManager {
     }
   }
 
+  private clearIdleDisposeTimer(): void {
+    if (this.idleDisposeTimer) {
+      clearTimeout(this.idleDisposeTimer)
+      this.idleDisposeTimer = null
+    }
+  }
+
+  private scheduleIdleDispose(): void {
+    this.clearIdleDisposeTimer()
+    if (this.disposed) return
+    this.idleDisposeTimer = setTimeout(() => {
+      this.idleDisposeTimer = null
+      if (this.disposed || this.running || this.queue.length > 0) return
+      if (this.worker) {
+        this.worker.terminate()
+        this.worker = null
+      }
+      if (this.decodeCtx) {
+        void this.decodeCtx.close().catch(() => {})
+        this.decodeCtx = null
+      }
+    }, IDLE_DISPOSE_MS)
+  }
+
   private ensureWorker(): Worker {
     if (this.worker) return this.worker
     this.worker = new Worker(new URL('./analyzer.worker.ts', import.meta.url), {
@@ -183,6 +209,7 @@ export class AnalysisManager {
       added++
     }
     if (added > 0) {
+      this.clearIdleDisposeTimer()
       this.progress.total += added
       this.emitProgress()
       if (!this.running && !this.paused) {
@@ -217,6 +244,7 @@ export class AnalysisManager {
 
   resume(): void {
     if (this.disposed) return
+    this.clearIdleDisposeTimer()
     this.paused = false
     void this.start()
   }
@@ -224,6 +252,7 @@ export class AnalysisManager {
   dispose(): void {
     this.disposed = true
     this.paused = true
+    this.clearIdleDisposeTimer()
     if (this.kickTimer) {
       clearTimeout(this.kickTimer)
       this.kickTimer = null
@@ -268,6 +297,7 @@ export class AnalysisManager {
 
   private async processQueue(): Promise<void> {
     if (this.running || this.disposed || this.paused) return
+    this.clearIdleDisposeTimer()
     this.running = true
     this.progress.running = true
     this.emitProgress()
@@ -297,6 +327,9 @@ export class AnalysisManager {
       this.progress.currentTrackId = null
       this.progress.currentTitle = null
       this.emitProgress()
+      if (!this.disposed && this.queue.length === 0) {
+        this.scheduleIdleDispose()
+      }
     }
   }
 
