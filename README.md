@@ -93,16 +93,6 @@ Download the latest installers from the [**Releases**](https://github.com/davide
 
 ---
 
-## Code Signing Policy
-
-Free code signing provided by [SignPath.io](https://signpath.io/), certificate by [SignPath Foundation](https://signpath.org/).
-
-- **Scope:** Official Windows release binaries (`PulseDeck-Setup-*.exe` and `PulseDeck-*-portable.exe`) built on GitHub-hosted runners directly from public source tags in `davide108/pulsedeck`.
-- **Team Roles:** Committers, reviewers, and release approvers: [`davide108`](https://github.com/davide108).
-- **Privacy & Network Usage:** PulseDeck runs locally with zero telemetry or analytics. Optional outbound network requests are limited to fetching lyrics from `lrclib.net` (toggleable in Settings) and checking GitHub Releases for application updates.
-
----
-
 ## License
 
 Released under the [MIT License](LICENSE).
