@@ -1,6 +1,7 @@
 import fs from 'node:fs'
 import path from 'node:path'
 import type { ILyricsTag } from 'music-metadata'
+import { normalizeArtistKey, parseArtistList, pickPreferredArtistDisplayName } from '../../shared/artists'
 import { parseKeyToCamelot } from '../../shared/camelot'
 import { formatTimestampLrc, isSyncedLrc, stripLrcTimestamps } from '../../shared/lrcParser'
 import type { AudioFormat, TrackRecord, TrackTechnicalInfo } from '../../shared/types'
@@ -163,6 +164,37 @@ const KEY_TAG_IDS = new Set(['TKEY', 'INITIALKEY', 'INITIAL KEY', 'INITIAL_KEY',
 const BPM_TAG_IDS = new Set(['TBPM', 'BPM', 'TMPO'])
 
 /**
+ * Resolves a canonical comma-separated artist string from embedded audio tags.
+ * Preserves multi-value `common.artists` arrays while deduplicating case-insensitively.
+ */
+export function resolveArtistFromTags(
+  commonArtist: string | undefined,
+  commonArtists: string[] | undefined,
+  fallbackArtist: string
+): string {
+  if (Array.isArray(commonArtists) && commonArtists.length > 1) {
+    const collected = new Map<string, string>()
+    for (const rawEntry of commonArtists) {
+      if (typeof rawEntry !== 'string') continue
+      for (const parsed of parseArtistList(rawEntry)) {
+        const key = normalizeArtistKey(parsed)
+        if (!key || key === 'unknown artist') continue
+        const existing = collected.get(key)
+        if (existing === undefined) {
+          collected.set(key, parsed)
+        } else {
+          collected.set(key, pickPreferredArtistDisplayName(existing, parsed))
+        }
+      }
+    }
+    if (collected.size > 0) {
+      return Array.from(collected.values()).join(', ')
+    }
+  }
+  return commonArtist?.trim() || fallbackArtist
+}
+
+/**
  * Extracts audio tags and embedded artwork from a file with graceful fallback to filename parsing.
  */
 export async function extractTrackMetadata(
@@ -196,13 +228,7 @@ export async function extractTrackMetadata(
     const { common, format: audioFormat, native } = metadata
 
     const title = common.title?.trim() || fallback.title
-    const artist =
-      common.artist?.trim() ||
-      common.artists
-        ?.map((a) => a.trim())
-        .filter(Boolean)
-        .join(', ') ||
-      fallback.artist
+    const artist = resolveArtistFromTags(common.artist, common.artists, fallback.artist)
     const album = common.album?.trim() || 'Unknown Album'
     const albumArtist = common.albumartist?.trim() || null
     const genre = common.genre?.find((g) => g.trim().length > 0)?.trim() || null

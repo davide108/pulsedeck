@@ -1,3 +1,4 @@
+import { normalizeArtistKey, parseArtistList } from './artists'
 import { getCamelotCompatibility, parseKeyToCamelot } from './camelot'
 import type { AutoDjQueueItem, TrackRecord } from './types'
 
@@ -56,6 +57,7 @@ export interface GenerateAutoDjQueueOptions {
 }
 
 const RECENT_HISTORY_WINDOW = 30
+const RECENT_ARTISTS_CAP = 12
 const EARLY_SKIP_THRESHOLD_SEC = 20
 const BACK_TO_BACK_ARTIST_PENALTY = 0.45
 
@@ -66,6 +68,26 @@ function clamp01(value: number): number {
 
 function normalizeLabel(value: string | null | undefined): string {
   return value ? value.trim().toLowerCase() : ''
+}
+
+function extractArtistKeys(raw: string | null | undefined): string[] {
+  if (!raw || !raw.trim()) return []
+  const keys: string[] = []
+  const seen = new Set<string>()
+  for (const name of parseArtistList(raw)) {
+    const key = normalizeArtistKey(name)
+    if (!key || key === 'unknown artist' || seen.has(key)) continue
+    seen.add(key)
+    keys.push(key)
+  }
+  return keys
+}
+
+function pushRecentArtists(recentArtists: string[], artistRaw: string | null | undefined): string[] {
+  const keys = extractArtistKeys(artistRaw)
+  if (keys.length === 0) return recentArtists
+  const keySet = new Set(keys)
+  return [...keys, ...recentArtists.filter((a) => !keySet.has(a))].slice(0, RECENT_ARTISTS_CAP)
 }
 
 function getAnchorTrackId(anchor: AutoDjAnchor | null | undefined): number | null {
@@ -99,11 +121,10 @@ export function trackToAnchor(track?: TrackRecord | AutoDjAnchor | null): AutoDj
 
 export function createAutoDjSession(anchorTrack?: TrackRecord | null): AutoDjSessionState {
   const anchor = trackToAnchor(anchorTrack)
-  const normArtist = normalizeLabel(anchor.artist)
   return {
     anchor,
     recentTrackIds: anchorTrack ? [anchorTrack.id] : [],
-    recentArtists: normArtist ? [normArtist] : [],
+    recentArtists: extractArtistKeys(anchor.artist).slice(0, RECENT_ARTISTS_CAP),
     skipPenalties: {
       trackIds: {},
       artists: {},
@@ -308,22 +329,35 @@ export function scoreCandidate(
   }
 
   // 2. Back-to-back same-artist penalty (-0.45) + softer recent-artist penalty
-  const anchorArtist = normalizeLabel(anchor.artist)
-  const candArtist = normalizeLabel(candidate.artist)
-  if (candArtist) {
-    if (anchorArtist && candArtist === anchorArtist) {
+  const anchorArtists = new Set(extractArtistKeys(anchor.artist))
+  const candArtists = extractArtistKeys(candidate.artist)
+  if (candArtists.length > 0) {
+    if (candArtists.some((artistKey) => anchorArtists.has(artistKey))) {
       penalty += BACK_TO_BACK_ARTIST_PENALTY
     } else {
-      const artistIdx = session.recentArtists.indexOf(candArtist)
-      if (artistIdx >= 0 && artistIdx < 3) {
-        penalty += 0.15 * (1 - artistIdx / 3)
+      let strongestRecentPenalty = 0
+      for (const artistKey of candArtists) {
+        const artistIdx = session.recentArtists.indexOf(artistKey)
+        if (artistIdx >= 0 && artistIdx < 3) {
+          const recentPenalty = 0.15 * (1 - artistIdx / 3)
+          if (recentPenalty > strongestRecentPenalty) {
+            strongestRecentPenalty = recentPenalty
+          }
+        }
       }
+      penalty += strongestRecentPenalty
     }
   }
 
   // 3. Early-skip (<20s) session feedback penalties
   const trackSkip = session.skipPenalties.trackIds[candidate.id] ?? 0
-  const artistSkip = candArtist ? (session.skipPenalties.artists[candArtist] ?? 0) : 0
+  let artistSkip = 0
+  for (const artistKey of candArtists) {
+    const skipVal = session.skipPenalties.artists[artistKey] ?? 0
+    if (skipVal > artistSkip) {
+      artistSkip = skipVal
+    }
+  }
   const candGenre = normalizeLabel(candidate.genre)
   const genreSkip = candGenre ? (session.skipPenalties.genres[candGenre] ?? 0) : 0
   penalty += trackSkip + artistSkip + genreSkip
@@ -355,10 +389,7 @@ export function reanchorSession(
     ...session.recentTrackIds.filter((id) => id !== selectedTrack.id)
   ].slice(0, RECENT_HISTORY_WINDOW)
 
-  const normArtist = normalizeLabel(selectedTrack.artist)
-  const nextRecentArtists = normArtist
-    ? [normArtist, ...session.recentArtists].slice(0, 10)
-    : session.recentArtists
+  const nextRecentArtists = pushRecentArtists(session.recentArtists, selectedTrack.artist)
 
   return {
     ...session,
@@ -384,9 +415,8 @@ export function recordEarlySkip(
   nextTrackIds[skippedTrack.id] = Math.min(1.0, (nextTrackIds[skippedTrack.id] ?? 0) + 0.65)
 
   const nextArtists = { ...session.skipPenalties.artists }
-  const normArtist = normalizeLabel(skippedTrack.artist)
-  if (normArtist) {
-    nextArtists[normArtist] = Math.min(0.75, (nextArtists[normArtist] ?? 0) + 0.3)
+  for (const artistKey of extractArtistKeys(skippedTrack.artist)) {
+    nextArtists[artistKey] = Math.min(0.75, (nextArtists[artistKey] ?? 0) + 0.3)
   }
 
   const nextGenres = { ...session.skipPenalties.genres }
@@ -415,14 +445,13 @@ function advanceWorkingSession(
   session: AutoDjSessionState,
   pickedTrack: TrackRecord
 ): AutoDjSessionState {
-  const normArtist = normalizeLabel(pickedTrack.artist)
   return {
     ...session,
     recentTrackIds: [
       pickedTrack.id,
       ...session.recentTrackIds.filter((id) => id !== pickedTrack.id)
     ].slice(0, RECENT_HISTORY_WINDOW),
-    recentArtists: normArtist ? [normArtist, ...session.recentArtists].slice(0, 10) : session.recentArtists
+    recentArtists: pushRecentArtists(session.recentArtists, pickedTrack.artist)
   }
 }
 

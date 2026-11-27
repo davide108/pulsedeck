@@ -25,21 +25,21 @@ A sleek, dark-first desktop music player for **Windows**, **macOS**, and **Linux
 Download the latest installers from the [**Releases**](https://github.com/davide108/pulsedeck/releases/latest) page:
 
 ### Windows (10 / 11 x64)
-- **`PulseDeck-Setup-1.3.3.exe`** — Standard Windows installer (Start Menu & Desktop shortcuts, uninstaller, and automatic in-app updates)
-- **`PulseDeck-1.3.3-portable.exe`** — Portable executable (runs directly without installation)
+- **`PulseDeck-Setup-1.3.4.exe`** — Standard Windows installer (Start Menu & Desktop shortcuts, uninstaller, and automatic in-app updates)
+- **`PulseDeck-1.3.4-portable.exe`** — Portable executable (runs directly without installation)
 
 > **Windows SmartScreen Note:** Because PulseDeck is currently unsigned, Windows may display *"Windows protected your PC"* on first launch. Click **More info** → **Run anyway** to proceed.
 
 ### macOS (Apple Silicon & Intel)
-- **`PulseDeck-1.3.3-mac-arm64.dmg`** — For Apple Silicon Macs (M1 / M2 / M3 / M4)
-- **`PulseDeck-1.3.3-mac-x64.dmg`** — For Intel Macs
+- **`PulseDeck-1.3.4-mac-arm64.dmg`** — For Apple Silicon Macs (M1 / M2 / M3 / M4)
+- **`PulseDeck-1.3.4-mac-x64.dmg`** — For Intel Macs
 
 > **macOS Gatekeeper Note:** Because builds are currently unsigned/notarized, macOS may warn that the app cannot be verified on first launch. Open **System Settings → Privacy & Security → Open Anyway**, or run `xattr -cr /Applications/PulseDeck.app` after dragging PulseDeck into Applications.
 
 ### Linux (x64 — Ubuntu, Debian, Fedora, Arch, Mint, openSUSE)
-- **`PulseDeck-1.3.3-linux-x86_64.AppImage`** (`.AppImage`) — Universal runnable for all major Linux distros with **automatic in-app updates** (`chmod +x PulseDeck-1.3.3-linux-x86_64.AppImage && ./PulseDeck-1.3.3-linux-x86_64.AppImage`; on Ubuntu 24.04+, install `libfuse2t64` / `libfuse2` if needed)
-- **`PulseDeck-1.3.3-linux-amd64.deb`** (`.deb`) — Ubuntu, Debian, Linux Mint, Pop!_OS (`sudo apt install ./PulseDeck-1.3.3-linux-*.deb`)
-- **`PulseDeck-1.3.3-linux-x86_64.rpm`** (`.rpm`) — Fedora, RHEL, Nobara, openSUSE (`sudo dnf install ./PulseDeck-1.3.3-linux-*.rpm`)
+- **`PulseDeck-1.3.4-linux-x86_64.AppImage`** (`.AppImage`) — Universal runnable for all major Linux distros with **automatic in-app updates** (`chmod +x PulseDeck-1.3.4-linux-x86_64.AppImage && ./PulseDeck-1.3.4-linux-x86_64.AppImage`; on Ubuntu 24.04+, install `libfuse2t64` / `libfuse2` if needed)
+- **`PulseDeck-1.3.4-linux-amd64.deb`** (`.deb`) — Ubuntu, Debian, Linux Mint, Pop!_OS (`sudo apt install ./PulseDeck-1.3.4-linux-*.deb`)
+- **`PulseDeck-1.3.4-linux-x86_64.rpm`** (`.rpm`) — Fedora, RHEL, Nobara, openSUSE (`sudo dnf install ./PulseDeck-1.3.4-linux-*.rpm`)
 
 ---
 
@@ -50,6 +50,7 @@ Download the latest installers from the [**Releases**](https://github.com/davide
 - **Watched Folders & File Watching:** Add, toggle, or rescan local music folders with automatic live updates when files are added, modified, or removed.
 - **Wide Format Support:** Supports `.mp3`, `.flac`, `.wav`, `.ogg`, `.m4a`, `.aac`, and `.opus` with clean filename fallback parsing (`Artist - Title`) when tags are missing.
 - **Instant Search & Smart Views:** Fast SQLite-backed filtering by Track, Artist, Album, Genre, BPM range, Camelot Key, and Source Folder, plus custom Playlists and Smart Views (*Recently Added*, *Most Played*, *High Energy*).
+- **Multi-Artist Support:** Comma-separated artist tags (e.g. `Artist A, Artist B`) and multi-value audio tags are automatically split and merged case-insensitively in the **Artists** view (while preserving exceptions like `Tyler, The Creator` and `Earth, Wind & Fire`), and also inform Auto-Mix anti-repeat scoring and primary-artist lyrics fallback.
 
 ### DJ Booth, Dual-Deck Mixing & Optional Auto-Mix
 - **Sidepanel DJ Booth:** Open **DJ Booth** directly from the left sidebar to access independent **Deck A** and **Deck B**, drag and drop tracks straight onto either deck (or click **`A` / `B`**), and browse either your **Up Next (Auto-Mix)** queue or your **Whole Library** with live search and sorting.
@@ -64,7 +65,7 @@ Download the latest installers from the [**Releases**](https://github.com/davide
 
 ### Track Info & Metadata Editor (`I`)
 - Right-click any track (or click the Info icon / press `I`) to inspect container, codec, bitrate, sample rate, channels, and file details.
-- Edit **Title**, **Artist**, **Album**, **Album Artist**, **Genre**, **Year**, **Track #**, **BPM**, **Musical/Camelot Key**, and **Cover Artwork**—all edits are preserved across folder rescans.
+- Edit **Title**, **Artist** (separate multiple artists with commas to preview and group them individually), **Album**, **Album Artist**, **Genre**, **Year**, **Track #**, **BPM**, **Musical/Camelot Key**, and **Cover Artwork**—all edits are preserved across folder rescans.
 
 ### Background Audio Analysis, Visuals & Automatic Updates
 - **Non-Blocking DSP Analyzer:** Automatically computes BPM, Camelot key (`1A–12B`), ReplayGain loudness normalization, Energy score, 200-bar clickable waveforms, and intro/outro silence cues.

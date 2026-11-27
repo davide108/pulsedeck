@@ -1,5 +1,6 @@
 import fs from 'node:fs'
 import path from 'node:path'
+import { getPrimaryArtist, parseArtistList } from '../../shared/artists'
 import { cleanQueryText, isSyncedLrc, stripLrcTimestamps } from '../../shared/lrcParser'
 import type { LyricsFetchOptions, TrackLyricsRecord } from '../../shared/types'
 import type { Repositories } from '../db/repositories'
@@ -312,13 +313,15 @@ export function createLyricsService({ repos, fetchFn }: LyricsServiceDeps) {
       }
 
       if (cleanedTitle || cleanedArtist) {
-        try {
+        const searchLrclib = async (searchArtist: string): Promise<LrclibApiItem | null> => {
           const searchParams = new URLSearchParams()
-          if (isKnownArtist && cleanedTitle) {
+          const knownSearchArtist =
+            searchArtist.length > 0 && searchArtist.toLowerCase() !== 'unknown artist'
+          if (knownSearchArtist && cleanedTitle) {
             searchParams.set('track_name', cleanedTitle)
-            searchParams.set('artist_name', cleanedArtist)
+            searchParams.set('artist_name', searchArtist)
           } else {
-            searchParams.set('q', cleanedTitle || cleanedArtist)
+            searchParams.set('q', cleanedTitle || searchArtist)
           }
 
           const res = await fetchImpl(`${LRCLIB_BASE_URL}/search?${searchParams.toString()}`, {
@@ -326,31 +329,51 @@ export function createLyricsService({ repos, fetchFn }: LyricsServiceDeps) {
             signal: AbortSignal.timeout(LRCLIB_TIMEOUT_MS)
           })
 
-          if (res.ok) {
-            const payload = (await res.json()) as unknown
-            const items = Array.isArray(payload) ? (payload as LrclibApiItem[]) : []
-            const best = selectBestLrclibCandidate(
-              items,
-              track.duration,
-              cleanedTitle,
-              isKnownArtist ? cleanedArtist : ''
-            )
+          if (!res.ok) return null
+          const payload = (await res.json()) as unknown
+          const items = Array.isArray(payload) ? (payload as LrclibApiItem[]) : []
+          return selectBestLrclibCandidate(
+            items,
+            track.duration,
+            cleanedTitle,
+            knownSearchArtist ? searchArtist : ''
+          )
+        }
 
-            if (best && isSyncedLrc(best.syncedLyrics)) {
-              return saveLrclibCandidate(trackId, best)
-            }
-            if (fallbackStatic && hasPlainLyrics(fallbackStatic)) {
-              return saveLrclibCandidate(trackId, fallbackStatic)
-            }
-            if (best && (hasPlainLyrics(best) || best.instrumental === true)) {
-              return saveLrclibCandidate(trackId, best)
-            }
-            if (fallbackStatic && fallbackStatic.instrumental === true) {
-              return saveLrclibCandidate(trackId, fallbackStatic)
-            }
-          }
+        let best: LrclibApiItem | null = null
+        try {
+          best = await searchLrclib(cleanedArtist)
         } catch {
           // Ignore network, timeout, or JSON parse failures gracefully.
+        }
+
+        if (!best && !hasCustomQuery && parseArtistList(rawArtist).length > 1) {
+          const primaryRaw = getPrimaryArtist(rawArtist)
+          const primaryArtist = cleanQueryText(primaryRaw) || primaryRaw.trim()
+          if (
+            primaryArtist &&
+            primaryArtist.toLowerCase() !== 'unknown artist' &&
+            primaryArtist !== cleanedArtist
+          ) {
+            try {
+              best = await searchLrclib(primaryArtist)
+            } catch {
+              // Ignore network, timeout, or JSON parse failures gracefully.
+            }
+          }
+        }
+
+        if (best && isSyncedLrc(best.syncedLyrics)) {
+          return saveLrclibCandidate(trackId, best)
+        }
+        if (fallbackStatic && hasPlainLyrics(fallbackStatic)) {
+          return saveLrclibCandidate(trackId, fallbackStatic)
+        }
+        if (best && (hasPlainLyrics(best) || best.instrumental === true)) {
+          return saveLrclibCandidate(trackId, best)
+        }
+        if (fallbackStatic && fallbackStatic.instrumental === true) {
+          return saveLrclibCandidate(trackId, fallbackStatic)
         }
       }
 

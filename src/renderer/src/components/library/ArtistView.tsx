@@ -6,6 +6,11 @@ import { FilterBar } from '@/components/library/FilterBar'
 import { TrackTable } from '@/components/library/TrackTable'
 import { useLibraryStore } from '@/store/useLibraryStore'
 import { usePlayerStore } from '@/store/usePlayerStore'
+import {
+  normalizeArtistKey,
+  parseArtistList,
+  pickPreferredArtistDisplayName
+} from '@shared/artists'
 import type { TrackRecord } from '@shared/types'
 
 interface ArtistSummary {
@@ -22,19 +27,22 @@ export function ArtistView() {
   const playTrack = usePlayerStore((s) => s.playTrack)
 
   const artists = useMemo<ArtistSummary[]>(() => {
-    const byArtist = new Map<string, TrackRecord[]>()
+    const byArtist = new Map<string, { name: string; tracks: TrackRecord[] }>()
     for (const track of tracks) {
-      const name = track.artist?.trim() || 'Unknown Artist'
-      const arr = byArtist.get(name)
-      if (arr) {
-        arr.push(track)
-      } else {
-        byArtist.set(name, [track])
+      for (const parsedName of parseArtistList(track.artist)) {
+        const key = normalizeArtistKey(parsedName)
+        const existing = byArtist.get(key)
+        if (existing) {
+          existing.name = pickPreferredArtistDisplayName(existing.name, parsedName)
+          existing.tracks.push(track)
+        } else {
+          byArtist.set(key, { name: parsedName, tracks: [track] })
+        }
       }
     }
 
     const result: ArtistSummary[] = []
-    for (const [name, list] of byArtist.entries()) {
+    for (const { name, tracks: list } of byArtist.values()) {
       const albumMap = new Map<string, { album: string; artworkPath: string | null; count: number }>()
       let artworkPath: string | null = null
       for (const tr of list) {
@@ -56,14 +64,15 @@ export function ArtistView() {
       })
     }
 
-    result.sort((a, b) => a.name.localeCompare(b.name))
+    result.sort((a, b) => a.name.localeCompare(b.name, undefined, { sensitivity: 'base' }))
     return result
   }, [tracks])
 
   const activeArtist = useMemo(() => {
     if (artists.length === 0) return null
     if (selectedArtist) {
-      const match = artists.find((a) => a.name === selectedArtist)
+      const selectedKey = normalizeArtistKey(selectedArtist)
+      const match = artists.find((a) => normalizeArtistKey(a.name) === selectedKey)
       if (match) return match
     }
     return artists[0]
