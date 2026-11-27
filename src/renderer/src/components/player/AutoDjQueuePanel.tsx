@@ -30,6 +30,7 @@ type LibrarySortKey = 'title' | 'bpm' | 'key' | 'energy' | 'added_at'
 
 interface AutoDjQueuePanelProps {
   compact?: boolean
+  showDeckControls?: boolean
   className?: string
 }
 
@@ -70,7 +71,11 @@ function matchesSearchTokens(track: TrackRecord, tokens: string[]): boolean {
   return true
 }
 
-export function AutoDjQueuePanel({ compact = false, className = '' }: AutoDjQueuePanelProps) {
+export function AutoDjQueuePanel({
+  compact = false,
+  showDeckControls = false,
+  className = ''
+}: AutoDjQueuePanelProps) {
   const [activeTab, setActiveTab] = useState<PanelTab>('queue')
   const [searchQuery, setSearchQuery] = useState('')
   const [sortBy, setSortBy] = useState<LibrarySortKey>('title')
@@ -159,7 +164,7 @@ export function AutoDjQueuePanel({ compact = false, className = '' }: AutoDjQueu
     return filtered
   }, [allTracks, searchQuery, sortBy, sortDir])
 
-  const rowStride = compact ? 74 : 78
+  const rowStride = compact ? (showDeckControls ? 74 : 68) : 78
   const libraryVirtualizer = useVirtualizer({
     count: activeTab === 'library' ? filteredLibraryTracks.length : 0,
     getScrollElement: () => libraryScrollRef.current,
@@ -452,7 +457,9 @@ export function AutoDjQueuePanel({ compact = false, className = '' }: AutoDjQueu
               <span className="font-mono text-[10px] tabular-nums text-slate-400">
                 {searchQuery.trim()
                   ? `${filteredLibraryTracks.length} / ${allTracks.length} matches`
-                  : `${allTracks.length} tracks · Drag onto Deck A / B`}
+                  : showDeckControls
+                    ? `${allTracks.length} tracks · Drag onto Deck A / B`
+                    : `${allTracks.length} tracks`}
               </span>
 
               <div className="flex items-center gap-1">
@@ -495,8 +502,9 @@ export function AutoDjQueuePanel({ compact = false, className = '' }: AutoDjQueu
               <Radio className="mb-2.5 h-8 w-8 text-slate-600" />
               <p className="text-xs font-semibold text-slate-300">Auto-DJ Queue Empty</p>
               <p className="mt-1 max-w-xs text-[11px] text-slate-500">
-                Add at least two tracks in your selected scope or switch to the Library tab to drag
-                tracks onto Deck A &amp; B.
+                {showDeckControls
+                  ? 'Add at least two tracks in your selected scope or switch to the Library tab to drag tracks onto Deck A & B.'
+                  : 'Add at least two tracks in your selected scope or switch to the Library tab to add tracks to Up Next.'}
               </p>
             </div>
           ) : (
@@ -509,9 +517,11 @@ export function AutoDjQueuePanel({ compact = false, className = '' }: AutoDjQueu
               return (
                 <div
                   key={`${track.id}-${idx}`}
-                  draggable
-                  onDragStart={(e) => setTrackDragData(e, track.id)}
-                  className={`group cursor-grab rounded-xl border p-2.5 transition-all active:cursor-grabbing ${
+                  draggable={showDeckControls}
+                  onDragStart={showDeckControls ? (e) => setTrackDragData(e, track.id) : undefined}
+                  className={`group rounded-xl border p-2.5 transition-all ${
+                    showDeckControls ? 'cursor-grab active:cursor-grabbing ' : ''
+                  }${
                     item.locked
                       ? 'border-accent/40 bg-accent/10'
                       : idx === 0
@@ -521,7 +531,9 @@ export function AutoDjQueuePanel({ compact = false, className = '' }: AutoDjQueu
                 >
                   <div className="flex items-center gap-2">
                     <div className="flex shrink-0 items-center gap-0.5 text-slate-500">
-                      <GripVertical className="h-3.5 w-3.5 opacity-45 group-hover:opacity-90" />
+                      {showDeckControls && (
+                        <GripVertical className="h-3.5 w-3.5 opacity-45 group-hover:opacity-90" />
+                      )}
                       <span className="w-3.5 text-center font-mono text-[10px] font-semibold">
                         {idx + 1}
                       </span>
@@ -582,32 +594,34 @@ export function AutoDjQueuePanel({ compact = false, className = '' }: AutoDjQueu
 
                     {/* Deck Load + Queue Controls */}
                     <div className="flex shrink-0 flex-col items-end gap-1">
-                      <div className="flex items-center gap-1">
-                        <button
-                          type="button"
-                          onClick={() => handleLoadToDeck('A', track)}
-                          title="Load onto Deck A"
-                          className={`flex h-5 w-6 items-center justify-center rounded border font-mono text-[10px] font-bold transition-colors ${
-                            onDeckA
-                              ? 'border-indigo-400 bg-indigo-500/40 text-white'
-                              : 'border-indigo-400/35 bg-indigo-500/15 text-indigo-200 hover:bg-indigo-500/35 hover:text-white'
-                          }`}
-                        >
-                          A
-                        </button>
-                        <button
-                          type="button"
-                          onClick={() => handleLoadToDeck('B', track)}
-                          title="Load onto Deck B"
-                          className={`flex h-5 w-6 items-center justify-center rounded border font-mono text-[10px] font-bold transition-colors ${
-                            onDeckB
-                              ? 'border-cyan-400 bg-cyan-500/40 text-white'
-                              : 'border-cyan-400/35 bg-cyan-500/15 text-cyan-200 hover:bg-cyan-500/35 hover:text-white'
-                          }`}
-                        >
-                          B
-                        </button>
-                      </div>
+                      {showDeckControls && (
+                        <div className="flex items-center gap-1">
+                          <button
+                            type="button"
+                            onClick={() => handleLoadToDeck('A', track)}
+                            title="Load onto Deck A"
+                            className={`flex h-5 w-6 items-center justify-center rounded border font-mono text-[10px] font-bold transition-colors ${
+                              onDeckA
+                                ? 'border-indigo-400 bg-indigo-500/40 text-white'
+                                : 'border-indigo-400/35 bg-indigo-500/15 text-indigo-200 hover:bg-indigo-500/35 hover:text-white'
+                            }`}
+                          >
+                            A
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => handleLoadToDeck('B', track)}
+                            title="Load onto Deck B"
+                            className={`flex h-5 w-6 items-center justify-center rounded border font-mono text-[10px] font-bold transition-colors ${
+                              onDeckB
+                                ? 'border-cyan-400 bg-cyan-500/40 text-white'
+                                : 'border-cyan-400/35 bg-cyan-500/15 text-cyan-200 hover:bg-cyan-500/35 hover:text-white'
+                            }`}
+                          >
+                            B
+                          </button>
+                        </div>
+                      )}
 
                       <div className="flex items-center gap-0.5">
                         <button
@@ -674,7 +688,9 @@ export function AutoDjQueuePanel({ compact = false, className = '' }: AutoDjQueu
               </p>
               <p className="mt-1 max-w-xs text-[11px] text-slate-500">
                 {allTracks.length === 0
-                  ? 'Add a music folder from the sidebar to browse and drag tracks onto Deck A & B.'
+                  ? showDeckControls
+                    ? 'Add a music folder from the sidebar to browse and drag tracks onto Deck A & B.'
+                    : 'Add a music folder from the sidebar to browse and queue tracks.'
                   : 'Try another title, artist, genre, BPM, or Camelot key.'}
               </p>
               {searchQuery && (
@@ -702,6 +718,10 @@ export function AutoDjQueuePanel({ compact = false, className = '' }: AutoDjQueu
                 const onDeckB = deckBTrackId === track.id
                 const wasQueued = recentlyQueuedId === track.id
 
+                const isHighlighted = showDeckControls
+                  ? onDeckA || onDeckB
+                  : activeTrack?.id === track.id
+
                 return (
                   <div
                     key={track.id}
@@ -713,15 +733,23 @@ export function AutoDjQueuePanel({ compact = false, className = '' }: AutoDjQueu
                       height: `${rowStride - 6}px`,
                       transform: `translateY(${virtualRow.start}px)`
                     }}
-                    draggable
-                    onDragStart={(e) => setTrackDragData(e, track.id)}
-                    className={`group flex cursor-grab items-center gap-2 rounded-xl border px-2.5 transition-all active:cursor-grabbing ${
-                      onDeckA || onDeckB
-                        ? 'border-white/20 bg-white/[0.06]'
+                    draggable={showDeckControls}
+                    onDragStart={
+                      showDeckControls ? (e) => setTrackDragData(e, track.id) : undefined
+                    }
+                    className={`group flex items-center gap-2 rounded-xl border px-2.5 transition-all ${
+                      showDeckControls ? 'cursor-grab active:cursor-grabbing ' : ''
+                    }${
+                      isHighlighted
+                        ? showDeckControls
+                          ? 'border-white/20 bg-white/[0.06]'
+                          : 'border-accent/35 bg-accent/10'
                         : 'border-white/[0.07] bg-white/[0.025] hover:border-white/15 hover:bg-white/[0.055]'
                     }`}
                   >
-                    <GripVertical className="h-3.5 w-3.5 shrink-0 text-slate-500 opacity-50 group-hover:opacity-95" />
+                    {showDeckControls && (
+                      <GripVertical className="h-3.5 w-3.5 shrink-0 text-slate-500 opacity-50 group-hover:opacity-95" />
+                    )}
 
                     <div className="relative shrink-0">
                       <ArtworkCover
@@ -759,39 +787,43 @@ export function AutoDjQueuePanel({ compact = false, className = '' }: AutoDjQueu
                     </div>
 
                     {/* Quick Deck Load (A / B) + Add to Queue */}
-                    <div className="flex shrink-0 flex-col items-end gap-1">
-                      <div className="flex items-center gap-1">
-                        <button
-                          type="button"
-                          onClick={() => handleLoadToDeck('A', track)}
-                          title={`Load "${track.title}" onto Deck A`}
-                          className={`flex h-6 w-6 items-center justify-center rounded-md border font-mono text-[10px] font-bold transition-colors ${
-                            onDeckA
-                              ? 'border-indigo-400 bg-indigo-500 text-white shadow-[0_0_8px_rgba(99,102,241,0.5)]'
-                              : 'border-indigo-400/35 bg-indigo-500/15 text-indigo-200 hover:bg-indigo-500/35 hover:text-white'
-                          }`}
-                        >
-                          A
-                        </button>
-                        <button
-                          type="button"
-                          onClick={() => handleLoadToDeck('B', track)}
-                          title={`Load "${track.title}" onto Deck B`}
-                          className={`flex h-6 w-6 items-center justify-center rounded-md border font-mono text-[10px] font-bold transition-colors ${
-                            onDeckB
-                              ? 'border-cyan-400 bg-cyan-500 text-slate-950 shadow-[0_0_8px_rgba(34,211,238,0.5)]'
-                              : 'border-cyan-400/35 bg-cyan-500/15 text-cyan-200 hover:bg-cyan-500/35 hover:text-white'
-                          }`}
-                        >
-                          B
-                        </button>
-                      </div>
+                    <div className="flex shrink-0 flex-col items-end justify-center gap-1">
+                      {showDeckControls && (
+                        <div className="flex items-center gap-1">
+                          <button
+                            type="button"
+                            onClick={() => handleLoadToDeck('A', track)}
+                            title={`Load "${track.title}" onto Deck A`}
+                            className={`flex h-6 w-6 items-center justify-center rounded-md border font-mono text-[10px] font-bold transition-colors ${
+                              onDeckA
+                                ? 'border-indigo-400 bg-indigo-500 text-white shadow-[0_0_8px_rgba(99,102,241,0.5)]'
+                                : 'border-indigo-400/35 bg-indigo-500/15 text-indigo-200 hover:bg-indigo-500/35 hover:text-white'
+                            }`}
+                          >
+                            A
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => handleLoadToDeck('B', track)}
+                            title={`Load "${track.title}" onto Deck B`}
+                            className={`flex h-6 w-6 items-center justify-center rounded-md border font-mono text-[10px] font-bold transition-colors ${
+                              onDeckB
+                                ? 'border-cyan-400 bg-cyan-500 text-slate-950 shadow-[0_0_8px_rgba(34,211,238,0.5)]'
+                                : 'border-cyan-400/35 bg-cyan-500/15 text-cyan-200 hover:bg-cyan-500/35 hover:text-white'
+                            }`}
+                          >
+                            B
+                          </button>
+                        </div>
+                      )}
 
                       <button
                         type="button"
                         onClick={() => handleAddToQueue(track)}
                         title={`Add "${track.title}" to Up Next queue`}
-                        className={`inline-flex h-5 items-center gap-0.5 rounded-md border px-1.5 text-[10px] font-medium transition-colors ${
+                        className={`inline-flex items-center gap-1 rounded-md border text-[10px] font-medium transition-colors ${
+                          showDeckControls ? 'h-5 px-1.5' : 'h-6 px-2'
+                        } ${
                           wasQueued
                             ? 'border-emerald-400/50 bg-emerald-500/20 text-emerald-200'
                             : 'border-white/10 bg-white/[0.04] text-slate-300 hover:border-accent/40 hover:bg-accent/15 hover:text-white'

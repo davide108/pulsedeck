@@ -114,7 +114,7 @@ export function App() {
               <DualDeckView />
             </div>
             <div className="h-[45%] w-full shrink-0 overflow-hidden bg-surface/35 lg:h-full lg:w-[420px] xl:w-[440px]">
-              <AutoDjQueuePanel />
+              <AutoDjQueuePanel showDeckControls />
             </div>
           </div>
         )

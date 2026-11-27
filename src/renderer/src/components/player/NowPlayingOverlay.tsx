@@ -346,7 +346,7 @@ export function NowPlayingOverlay() {
 
         {/* Right Column: Transparent Auto-DJ Queue */}
         <aside className="hidden w-96 shrink-0 border-l border-white/[0.07] bg-surface/45 lg:flex lg:flex-col">
-          <AutoDjQueuePanel compact />
+          <AutoDjQueuePanel compact showDeckControls={false} />
         </aside>
       </div>
     </div>
