@@ -1,4 +1,3 @@
-import { useEffect, useRef } from 'react'
 import {
   Activity,
   Copy,
@@ -6,7 +5,6 @@ import {
   Loader2,
   Minus,
   PictureInPicture2,
-  Search,
   Settings,
   Square,
   X
@@ -17,11 +15,8 @@ import { getModKeyLabel, isMacPlatform } from '@/utils/format'
 
 export function TitleBar() {
   const activeView = useLibraryStore((s) => s.activeView)
-  const search = useLibraryStore((s) => s.filter.search ?? '')
   const facets = useLibraryStore((s) => s.facets)
   const scanProgress = useLibraryStore((s) => s.scanProgress)
-  const focusSearchNonce = useLibraryStore((s) => s.focusSearchNonce)
-  const setFilter = useLibraryStore((s) => s.setFilter)
   const setView = useLibraryStore((s) => s.setView)
 
   const analysisProgress = usePlayerStore((s) => s.analysisProgress)
@@ -32,16 +27,8 @@ export function TitleBar() {
   const toggleMaximizeWindow = usePlayerStore((s) => s.toggleMaximizeWindow)
   const closeWindow = usePlayerStore((s) => s.closeWindow)
 
-  const searchInputRef = useRef<HTMLInputElement>(null)
   const isMac = isMacPlatform()
   const modKey = getModKeyLabel()
-
-  useEffect(() => {
-    if (focusSearchNonce > 0) {
-      searchInputRef.current?.focus()
-      searchInputRef.current?.select()
-    }
-  }, [focusSearchNonce])
 
   const activeScan = Object.values(scanProgress).find(
     (ev) => ev.phase === 'discovering' || ev.phase === 'indexing'
@@ -49,16 +36,6 @@ export function TitleBar() {
 
   const pendingAnalyzeCount = Math.max(0, facets.totalTracks - facets.analyzedTracks)
   const showAnalysisBadge = analysisProgress.running || pendingAnalyzeCount > 0
-
-  const handleQuickSearchChange = (value: string) => {
-    if (
-      value.trim() &&
-      (activeView === 'folders' || activeView === 'autodj' || activeView === 'settings')
-    ) {
-      setView('tracks')
-    }
-    setFilter({ search: value })
-  }
 
   return (
     <header className="drag-region flex h-11 shrink-0 items-center justify-between border-b border-white/[0.07] bg-obsidian/90 px-3 select-none backdrop-blur-xl">
@@ -74,36 +51,6 @@ export function TitleBar() {
               <span className="h-1.5 w-1.5 rounded-full bg-accent animate-pulse" />
               Auto-Mix
             </span>
-          )}
-        </div>
-      </div>
-
-      {/* Quick Search (F) */}
-      <div className="no-drag mx-4 flex w-full max-w-md items-center">
-        <div className="relative w-full">
-          <Search className="pointer-events-none absolute left-2.5 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-slate-400" />
-          <input
-            ref={searchInputRef}
-            type="text"
-            value={search}
-            onChange={(e) => handleQuickSearchChange(e.target.value)}
-            placeholder="Quick search tracks, artists, genres..."
-            aria-label="Quick search"
-            className="h-7 w-full rounded-lg border border-white/10 bg-white/[0.04] pl-8 pr-12 text-xs text-slate-100 placeholder:text-slate-500 focus:border-accent/60 focus:bg-white/[0.07] focus:outline-none transition-colors"
-          />
-          {search ? (
-            <button
-              type="button"
-              onClick={() => setFilter({ search: '' })}
-              className="absolute right-2 top-1/2 -translate-y-1/2 text-slate-400 hover:text-white"
-              title="Clear search"
-            >
-              <X className="h-3.5 w-3.5" />
-            </button>
-          ) : (
-            <kbd className="pointer-events-none absolute right-2 top-1/2 -translate-y-1/2 rounded border border-white/10 bg-white/[0.04] px-1.5 py-0.5 font-mono text-[9px] text-slate-500">
-              F
-            </kbd>
           )}
         </div>
       </div>

@@ -1,6 +1,9 @@
+import { useEffect, useRef } from 'react'
 import { FilterX, Folder, KeyRound, Search, SlidersHorizontal, X } from 'lucide-react'
 import { camelotToMusicalName } from '@shared/camelot'
 import { useLibraryStore } from '@/store/useLibraryStore'
+
+let handledFocusSearchNonce = 0
 
 interface FilterBarProps {
   showFolderFilter?: boolean
@@ -11,8 +14,18 @@ export function FilterBar({ showFolderFilter = true }: FilterBarProps) {
   const facets = useLibraryStore((s) => s.facets)
   const folders = useLibraryStore((s) => s.folders)
   const tracksCount = useLibraryStore((s) => s.tracks.length)
+  const focusSearchNonce = useLibraryStore((s) => s.focusSearchNonce)
   const setFilter = useLibraryStore((s) => s.setFilter)
   const resetFilter = useLibraryStore((s) => s.resetFilter)
+  const searchInputRef = useRef<HTMLInputElement>(null)
+
+  useEffect(() => {
+    if (focusSearchNonce > handledFocusSearchNonce) {
+      handledFocusSearchNonce = focusSearchNonce
+      searchInputRef.current?.focus()
+      searchInputRef.current?.select()
+    }
+  }, [focusSearchNonce])
 
   const hasActiveFilter = Boolean(
     filter.search?.trim() ||
@@ -32,17 +45,19 @@ export function FilterBar({ showFolderFilter = true }: FilterBarProps) {
 
   return (
     <div className="flex flex-wrap items-center gap-2 border-b border-white/[0.06] bg-surface/40 px-5 py-2.5 backdrop-blur-md">
-      {/* Instant search */}
+      {/* Instant search (F / Ctrl+F) */}
       <div className="relative min-w-[200px] flex-1 max-w-xs">
         <Search className="pointer-events-none absolute left-2.5 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-slate-400" />
         <input
+          ref={searchInputRef}
           type="text"
           value={filter.search ?? ''}
           onChange={(e) => setFilter({ search: e.target.value })}
-          placeholder="Filter title, artist, album, genre..."
-          className="h-8 w-full rounded-lg border border-white/10 bg-white/[0.04] pl-8 pr-7 text-xs text-slate-100 placeholder:text-slate-500 focus:border-accent/60 focus:bg-white/[0.07] focus:outline-none transition-colors"
+          placeholder="Search title, artist, album, genre..."
+          aria-label="Filter library tracks"
+          className="h-8 w-full rounded-lg border border-white/10 bg-white/[0.04] pl-8 pr-8 text-xs text-slate-100 placeholder:text-slate-500 focus:border-accent/60 focus:bg-white/[0.07] focus:outline-none transition-colors"
         />
-        {filter.search && (
+        {filter.search ? (
           <button
             type="button"
             onClick={() => setFilter({ search: '' })}
@@ -51,6 +66,10 @@ export function FilterBar({ showFolderFilter = true }: FilterBarProps) {
           >
             <X className="h-3.5 w-3.5" />
           </button>
+        ) : (
+          <kbd className="pointer-events-none absolute right-2 top-1/2 -translate-y-1/2 rounded border border-white/10 bg-white/[0.04] px-1.5 py-0.5 font-mono text-[9px] text-slate-500">
+            F
+          </kbd>
         )}
       </div>
 

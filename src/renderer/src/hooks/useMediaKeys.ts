@@ -112,6 +112,24 @@ export function useMediaKeys(): void {
 
   // Keyboard shortcuts
   useEffect(() => {
+    const focusLibrarySearch = () => {
+      const player = usePlayerStore.getState()
+      if (player.nowPlayingOpen) {
+        player.setNowPlayingOpen(false)
+      }
+      const library = useLibraryStore.getState()
+      if (
+        library.activeView === 'settings' ||
+        library.activeView === 'folders' ||
+        library.activeView === 'autodj'
+      ) {
+        library.setView('tracks')
+      } else if (library.activeView === 'albums' && library.selectedAlbum !== null) {
+        library.setSelectedAlbum(null)
+      }
+      library.triggerFocusSearch()
+    }
+
     const handleKeyDown = (e: KeyboardEvent) => {
       const editable = isEditableElement(e.target)
       const player = usePlayerStore.getState()
@@ -138,7 +156,7 @@ export function useMediaKeys(): void {
 
       if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'f') {
         e.preventDefault()
-        useLibraryStore.getState().triggerFocusSearch()
+        focusLibrarySearch()
         return
       }
 
@@ -214,7 +232,7 @@ export function useMediaKeys(): void {
             }
           } else if (lower === 'f') {
             e.preventDefault()
-            useLibraryStore.getState().triggerFocusSearch()
+            focusLibrarySearch()
           }
           break
         }
