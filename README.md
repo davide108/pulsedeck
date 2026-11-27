@@ -25,21 +25,21 @@ A sleek, dark-first desktop music player for **Windows**, **macOS**, and **Linux
 Download the latest installers from the [**Releases**](https://github.com/davide108/pulsedeck/releases/latest) page:
 
 ### Windows (10 / 11 x64)
-- **`PulseDeck-Setup-1.3.1.exe`** — Standard Windows installer (Start Menu & Desktop shortcuts, uninstaller, and automatic in-app updates)
-- **`PulseDeck-1.3.1-portable.exe`** — Portable executable (runs directly without installation)
+- **`PulseDeck-Setup-1.3.2.exe`** — Standard Windows installer (Start Menu & Desktop shortcuts, uninstaller, and automatic in-app updates)
+- **`PulseDeck-1.3.2-portable.exe`** — Portable executable (runs directly without installation)
 
 > **Windows SmartScreen Note:** Because PulseDeck is currently unsigned, Windows may display *"Windows protected your PC"* on first launch. Click **More info** → **Run anyway** to proceed.
 
 ### macOS (Apple Silicon & Intel)
-- **`PulseDeck-1.3.1-mac-arm64.dmg`** — For Apple Silicon Macs (M1 / M2 / M3 / M4)
-- **`PulseDeck-1.3.1-mac-x64.dmg`** — For Intel Macs
+- **`PulseDeck-1.3.2-mac-arm64.dmg`** — For Apple Silicon Macs (M1 / M2 / M3 / M4)
+- **`PulseDeck-1.3.2-mac-x64.dmg`** — For Intel Macs
 
 > **macOS Gatekeeper Note:** Because builds are currently unsigned/notarized, macOS may warn that the app cannot be verified on first launch. Open **System Settings → Privacy & Security → Open Anyway**, or run `xattr -cr /Applications/PulseDeck.app` after dragging PulseDeck into Applications.
 
 ### Linux (x64 — Ubuntu, Debian, Fedora, Arch, Mint, openSUSE)
-- **`PulseDeck-1.3.1-linux-x86_64.AppImage`** (`.AppImage`) — Universal runnable for all major Linux distros with **automatic in-app updates** (`chmod +x PulseDeck-1.3.1-linux-x86_64.AppImage && ./PulseDeck-1.3.1-linux-x86_64.AppImage`; on Ubuntu 24.04+, install `libfuse2t64` / `libfuse2` if needed)
-- **`PulseDeck-1.3.1-linux-amd64.deb`** (`.deb`) — Ubuntu, Debian, Linux Mint, Pop!_OS (`sudo apt install ./PulseDeck-1.3.1-linux-*.deb`)
-- **`PulseDeck-1.3.1-linux-x86_64.rpm`** (`.rpm`) — Fedora, RHEL, Nobara, openSUSE (`sudo dnf install ./PulseDeck-1.3.1-linux-*.rpm`)
+- **`PulseDeck-1.3.2-linux-x86_64.AppImage`** (`.AppImage`) — Universal runnable for all major Linux distros with **automatic in-app updates** (`chmod +x PulseDeck-1.3.2-linux-x86_64.AppImage && ./PulseDeck-1.3.2-linux-x86_64.AppImage`; on Ubuntu 24.04+, install `libfuse2t64` / `libfuse2` if needed)
+- **`PulseDeck-1.3.2-linux-amd64.deb`** (`.deb`) — Ubuntu, Debian, Linux Mint, Pop!_OS (`sudo apt install ./PulseDeck-1.3.2-linux-*.deb`)
+- **`PulseDeck-1.3.2-linux-x86_64.rpm`** (`.rpm`) — Fedora, RHEL, Nobara, openSUSE (`sudo dnf install ./PulseDeck-1.3.2-linux-*.rpm`)
 
 ---
 
