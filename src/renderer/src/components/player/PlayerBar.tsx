@@ -1,4 +1,5 @@
 import {
+  Heart,
   Info,
   Loader2,
   Maximize2,
@@ -47,6 +48,7 @@ export function PlayerBar() {
   const triggerManualCrossfade = usePlayerStore((s) => s.triggerManualCrossfade)
   const setNowPlayingOpen = usePlayerStore((s) => s.setNowPlayingOpen)
   const openTrackInfo = useLibraryStore((s) => s.openTrackInfo)
+  const toggleTrackLike = useLibraryStore((s) => s.toggleTrackLike)
 
   const activeDeck = telemetry.decks[telemetry.activeDeckId]
   const duration = activeDeck.duration || activeTrack?.duration || 0
@@ -102,19 +104,44 @@ export function PlayerBar() {
         </div>
 
         {activeTrack && (
-          <button
-            type="button"
-            onClick={(e) => {
-              e.stopPropagation()
-              openTrackInfo(activeTrack)
-            }}
-            onKeyDown={(e) => e.stopPropagation()}
-            title="Track Info & Edit Metadata (I)"
-            aria-label="Track Info & Edit Metadata"
-            className="flex h-7 w-7 shrink-0 items-center justify-center rounded-lg text-slate-400 opacity-70 hover:bg-white/10 hover:text-white group-hover:opacity-100 transition-all"
-          >
-            <Info className="h-3.5 w-3.5" />
-          </button>
+          <div className="flex shrink-0 items-center gap-0.5">
+            <button
+              type="button"
+              onClick={(e) => {
+                e.stopPropagation()
+                void toggleTrackLike(activeTrack.id)
+              }}
+              onKeyDown={(e) => e.stopPropagation()}
+              title={
+                activeTrack.isLiked
+                  ? 'Remove from Liked Songs (H)'
+                  : 'Save to Liked Songs (H)'
+              }
+              aria-label={
+                activeTrack.isLiked ? 'Remove from Liked Songs' : 'Save to Liked Songs'
+              }
+              className={`flex h-7 w-7 shrink-0 items-center justify-center rounded-lg transition-all ${
+                activeTrack.isLiked
+                  ? 'text-rose-400 hover:bg-rose-500/15 hover:text-rose-300 opacity-100'
+                  : 'text-slate-400 opacity-70 hover:bg-white/10 hover:text-rose-400 group-hover:opacity-100'
+              }`}
+            >
+              <Heart className={`h-3.5 w-3.5 ${activeTrack.isLiked ? 'fill-rose-400' : ''}`} />
+            </button>
+            <button
+              type="button"
+              onClick={(e) => {
+                e.stopPropagation()
+                openTrackInfo(activeTrack)
+              }}
+              onKeyDown={(e) => e.stopPropagation()}
+              title="Track Info & Edit Metadata (I)"
+              aria-label="Track Info & Edit Metadata"
+              className="flex h-7 w-7 shrink-0 items-center justify-center rounded-lg text-slate-400 opacity-70 hover:bg-white/10 hover:text-white group-hover:opacity-100 transition-all"
+            >
+              <Info className="h-3.5 w-3.5" />
+            </button>
+          </div>
         )}
       </div>
 

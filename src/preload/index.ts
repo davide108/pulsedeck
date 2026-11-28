@@ -44,7 +44,9 @@ const api: IpcApi = {
     inspectFile: (trackId: number) =>
       ipcRenderer.invoke(IPC_CHANNELS.TRACKS_INSPECT_FILE, trackId),
     pickArtwork: (trackId: number) =>
-      ipcRenderer.invoke(IPC_CHANNELS.TRACKS_PICK_ARTWORK, trackId)
+      ipcRenderer.invoke(IPC_CHANNELS.TRACKS_PICK_ARTWORK, trackId),
+    toggleLike: (trackId: number, liked?: boolean) =>
+      ipcRenderer.invoke(IPC_CHANNELS.TRACKS_TOGGLE_LIKE, trackId, liked)
   },
 
   lyrics: {

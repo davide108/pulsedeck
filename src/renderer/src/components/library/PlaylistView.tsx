@@ -3,6 +3,7 @@ import {
   Check,
   Clock,
   Flame,
+  Heart,
   ListMusic,
   Pencil,
   Play,
@@ -25,6 +26,11 @@ const SMART_VIEW_META: Record<
     title: 'All Library Tracks',
     subtitle: 'Complete collection across all active watched folders.',
     badge: 'Library'
+  },
+  liked: {
+    title: 'Liked Songs',
+    subtitle: 'Your favorite tracks, ordered from most recently liked.',
+    badge: 'Favorites'
   },
   recently_added: {
     title: 'Recently Added',
@@ -76,8 +82,10 @@ export function PlaylistView() {
 
   if (activeView === 'smart') {
     const meta = SMART_VIEW_META[activeSmartView]
-    const Icon =
-      activeSmartView === 'recently_added'
+    const isLikedView = activeSmartView === 'liked'
+    const Icon = isLikedView
+      ? Heart
+      : activeSmartView === 'recently_added'
         ? Clock
         : activeSmartView === 'most_played'
           ? TrendingUp
@@ -87,11 +95,21 @@ export function PlaylistView() {
       <div className="flex h-full flex-col overflow-hidden">
         <div className="flex flex-wrap items-center justify-between gap-4 border-b border-white/[0.07] bg-gradient-to-r from-accent/15 via-surface/60 to-accentGlow/10 px-6 py-5">
           <div className="flex items-center gap-4">
-            <div className="flex h-12 w-12 items-center justify-center rounded-2xl border border-accent/35 bg-accent/20 text-accentGlow shadow-glow">
+            <div
+              className={`flex h-12 w-12 items-center justify-center rounded-2xl border ${
+                isLikedView
+                  ? 'border-rose-500/35 bg-rose-500/15 text-rose-400'
+                  : 'border-accent/35 bg-accent/20 text-accentGlow shadow-glow'
+              }`}
+            >
               <Icon className="h-6 w-6" />
             </div>
             <div>
-              <span className="text-[10px] font-semibold uppercase tracking-widest text-accentGlow">
+              <span
+                className={`text-[10px] font-semibold uppercase tracking-widest ${
+                  isLikedView ? 'text-rose-400' : 'text-accentGlow'
+                }`}
+              >
                 {meta.badge}
               </span>
               <h1 className="text-xl font-bold text-white">{meta.title}</h1>
@@ -100,14 +118,29 @@ export function PlaylistView() {
           </div>
 
           {tracks.length > 0 && (
-            <button
-              type="button"
-              onClick={() => void playTrack(tracks[0], tracks)}
-              className="inline-flex h-9 items-center gap-2 rounded-xl bg-accent px-4 text-xs font-semibold text-white shadow-glow hover:brightness-110 transition-all"
-            >
-              <Play className="h-3.5 w-3.5" />
-              <span>Play Top Track</span>
-            </button>
+            <div className="flex items-center gap-2">
+              {isLikedView && (
+                <button
+                  type="button"
+                  onClick={() => {
+                    updateAutoDjConfig({ enabled: true, scope: { type: 'liked' } })
+                    void playTrack(tracks[0], tracks)
+                  }}
+                  className="inline-flex h-9 items-center gap-1.5 rounded-xl border border-accent/35 bg-accent/15 px-3.5 text-xs font-semibold text-white hover:bg-accent/25 transition-colors"
+                >
+                  <Radio className="h-3.5 w-3.5 text-accentGlow" />
+                  <span>Auto-DJ Liked</span>
+                </button>
+              )}
+              <button
+                type="button"
+                onClick={() => void playTrack(tracks[0], tracks)}
+                className="inline-flex h-9 items-center gap-2 rounded-xl bg-accent px-4 text-xs font-semibold text-white shadow-glow hover:brightness-110 transition-all"
+              >
+                <Play className="h-3.5 w-3.5" />
+                <span>Play Top Track</span>
+              </button>
+            </div>
           )}
         </div>
 
@@ -115,11 +148,13 @@ export function PlaylistView() {
         <TrackTable
           emptyTitle={`No tracks in ${meta.title}`}
           emptyDescription={
-            activeSmartView === 'most_played'
-              ? 'Play tracks to build your rotation history.'
-              : activeSmartView === 'high_energy'
-                ? 'Tracks with DSP energy ≥ 0.65 will appear here once analyzed.'
-                : 'Add a music folder to see newly indexed tracks.'
+            activeSmartView === 'liked'
+              ? 'Click the heart icon on any song or press H while playing to add tracks to Liked Songs.'
+              : activeSmartView === 'most_played'
+                ? 'Play tracks to build your rotation history.'
+                : activeSmartView === 'high_energy'
+                  ? 'Tracks with DSP energy ≥ 0.65 will appear here once analyzed.'
+                  : 'Add a music folder to see newly indexed tracks.'
           }
         />
       </div>

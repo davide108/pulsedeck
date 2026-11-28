@@ -7,6 +7,7 @@ import {
   Flame,
   Folder,
   FolderCog,
+  Heart,
   ListMusic,
   Music2,
   Plus,
@@ -150,6 +151,31 @@ export function Sidebar() {
         {/* Smart Views */}
         {renderSectionTitle('Smart Views')}
         <div className="space-y-0.5">
+          <button
+            type="button"
+            onClick={() => setView('smart', { smartView: 'liked' })}
+            title="Liked Songs"
+            className={navItemClass(activeView === 'smart' && activeSmartView === 'liked')}
+          >
+            <Heart
+              className={`h-4 w-4 shrink-0 ${
+                activeView === 'smart' && activeSmartView === 'liked'
+                  ? 'fill-rose-400 text-rose-400'
+                  : facets.likedTracks > 0
+                    ? 'text-rose-400'
+                    : ''
+              }`}
+            />
+            {!sidebarCollapsed && (
+              <>
+                <span className="flex-1 truncate text-left">Liked Songs</span>
+                <span className="font-mono text-[10px] tabular-nums text-slate-500">
+                  {facets.likedTracks}
+                </span>
+              </>
+            )}
+          </button>
+
           <button
             type="button"
             onClick={() => setView('smart', { smartView: 'recently_added' })}

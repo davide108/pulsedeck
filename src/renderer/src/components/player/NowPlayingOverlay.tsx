@@ -2,6 +2,7 @@ import {
   ChevronDown,
   Disc3,
   Gauge,
+  Heart,
   Info,
   Mic2,
   Pause,
@@ -50,6 +51,7 @@ export function NowPlayingOverlay() {
   const cycleRepeatMode = usePlayerStore((s) => s.cycleRepeatMode)
   const toggleAutoDj = usePlayerStore((s) => s.toggleAutoDj)
   const triggerManualCrossfade = usePlayerStore((s) => s.triggerManualCrossfade)
+  const toggleTrackLike = useLibraryStore((s) => s.toggleTrackLike)
 
   if (!open) return null
 
@@ -90,6 +92,27 @@ export function NowPlayingOverlay() {
         </div>
 
         <div className="flex items-center gap-2">
+          {activeTrack && (
+            <button
+              type="button"
+              onClick={() => void toggleTrackLike(activeTrack.id)}
+              title="Toggle Liked Song (H)"
+              aria-label={
+                activeTrack.isLiked ? 'Remove from Liked Songs' : 'Save to Liked Songs'
+              }
+              className={`inline-flex h-8 items-center gap-1.5 rounded-xl border px-3 text-xs transition-colors ${
+                activeTrack.isLiked
+                  ? 'border-rose-500/40 bg-rose-500/15 text-rose-300 hover:bg-rose-500/25'
+                  : 'border-white/10 bg-white/[0.04] text-slate-300 hover:bg-white/10 hover:text-white'
+              }`}
+            >
+              <Heart
+                className={`h-3.5 w-3.5 ${activeTrack.isLiked ? 'fill-rose-400 text-rose-400' : ''}`}
+              />
+              <span>{activeTrack.isLiked ? 'Liked' : 'Like'}</span>
+            </button>
+          )}
+
           {activeTrack && (
             <button
               type="button"

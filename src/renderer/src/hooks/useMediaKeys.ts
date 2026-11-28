@@ -230,6 +230,11 @@ export function useMediaKeys(): void {
             if (player.activeTrack) {
               useLibraryStore.getState().openTrackInfo(player.activeTrack)
             }
+          } else if (lower === 'h') {
+            if (player.activeTrack) {
+              e.preventDefault()
+              void useLibraryStore.getState().toggleTrackLike(player.activeTrack.id)
+            }
           } else if (lower === 'f') {
             e.preventDefault()
             focusLibrarySearch()

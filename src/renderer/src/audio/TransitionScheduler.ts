@@ -181,10 +181,22 @@ export class TransitionScheduler {
         .filter((t) => !t.isMissing)
     }
 
-    // Keep activeTrack metadata in sync if analysis just completed
+    // Keep activeTrack metadata in sync if analysis or metadata/like state changed
     if (this.activeTrack) {
       const updated = this.allTracks.find((t) => t.id === this.activeTrack!.id)
       if (updated) {
+        const activeChanged =
+          Boolean(this.activeTrack.isLiked) !== Boolean(updated.isLiked) ||
+          (this.activeTrack.likedAt ?? null) !== (updated.likedAt ?? null) ||
+          this.activeTrack.title !== updated.title ||
+          this.activeTrack.artist !== updated.artist ||
+          this.activeTrack.album !== updated.album ||
+          this.activeTrack.artworkPath !== updated.artworkPath ||
+          this.activeTrack.bpm !== updated.bpm ||
+          this.activeTrack.camelotKey !== updated.camelotKey ||
+          this.activeTrack.genre !== updated.genre ||
+          this.activeTrack.energy !== updated.energy ||
+          this.activeTrack.metadataEditedAt !== updated.metadataEditedAt
         this.activeTrack = updated
         this.session = {
           ...this.session,
@@ -196,6 +208,9 @@ export class TransitionScheduler {
             energy: updated.energy,
             artist: updated.artist
           }
+        }
+        if (activeChanged) {
+          this.emitActiveTrack()
         }
       }
     }
@@ -323,6 +338,9 @@ export class TransitionScheduler {
     }
     if (scope.type === 'playlist') {
       return (this.playlistScopedTracks ?? []).filter((t) => !t.isMissing)
+    }
+    if (scope.type === 'liked') {
+      return this.allTracks.filter((t) => Boolean(t.isLiked) && !t.isMissing)
     }
     return this.allTracks.filter((t) => !t.isMissing)
   }

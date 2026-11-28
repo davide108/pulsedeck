@@ -37,6 +37,7 @@ export const IPC_CHANNELS = {
   TRACKS_RELOAD_METADATA: 'tracks:reloadMetadata',
   TRACKS_INSPECT_FILE: 'tracks:inspectFile',
   TRACKS_PICK_ARTWORK: 'tracks:pickArtwork',
+  TRACKS_TOGGLE_LIKE: 'tracks:toggleLike',
 
   LYRICS_GET_FOR_TRACK: 'lyrics:getForTrack',
   LYRICS_SAVE: 'lyrics:save',
@@ -100,6 +101,7 @@ export interface IpcApi {
     reloadMetadata: (trackId: number) => Promise<TrackRecord | null>
     inspectFile: (trackId: number) => Promise<TrackTechnicalInfo | null>
     pickArtwork: (trackId: number) => Promise<TrackRecord | null>
+    toggleLike: (trackId: number, liked?: boolean) => Promise<TrackRecord | null>
   }
   lyrics: {
     getForTrack: (trackId: number, options?: LyricsFetchOptions) => Promise<TrackLyricsRecord | null>

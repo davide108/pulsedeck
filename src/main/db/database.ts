@@ -43,7 +43,8 @@ CREATE TABLE IF NOT EXISTS tracks (
   play_count INTEGER NOT NULL DEFAULT 0,
   last_played_at INTEGER,
   added_at INTEGER NOT NULL,
-  metadata_edited_at INTEGER
+  metadata_edited_at INTEGER,
+  liked_at INTEGER
 );
 
 CREATE TABLE IF NOT EXISTS track_lyrics (
@@ -122,6 +123,10 @@ export function createDatabase(dbPath: string): Database.Database {
   if (!trackColumns.some((column) => column.name === 'metadata_edited_at')) {
     db.exec('ALTER TABLE tracks ADD COLUMN metadata_edited_at INTEGER')
   }
+  if (!trackColumns.some((column) => column.name === 'liked_at')) {
+    db.exec('ALTER TABLE tracks ADD COLUMN liked_at INTEGER')
+  }
+  db.exec('CREATE INDEX IF NOT EXISTS idx_tracks_liked_at ON tracks(liked_at)')
 
   return db
 }

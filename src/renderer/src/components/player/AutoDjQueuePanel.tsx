@@ -95,6 +95,7 @@ export function AutoDjQueuePanel({
   const folders = useLibraryStore((s) => s.folders)
   const playlists = useLibraryStore((s) => s.playlists)
   const allTracks = useLibraryStore((s) => s.allTracks)
+  const likedTracksCount = useLibraryStore((s) => s.facets.likedTracks)
 
   const activeTrack = usePlayerStore((s) => s.activeTrack)
   const deckATrackId = usePlayerStore((s) => s.telemetry.decks.A.track?.id ?? null)
@@ -175,6 +176,12 @@ export function AutoDjQueuePanel({
   const handleScopeTypeChange = (nextType: AutoDjScope['type']) => {
     if (nextType === 'library') {
       updateAutoDjConfig({ scope: { type: 'library' } })
+      return
+    }
+    if (nextType === 'liked') {
+      if (likedTracksCount > 0) {
+        updateAutoDjConfig({ scope: { type: 'liked' } })
+      }
       return
     }
     if (nextType === 'folder') {
@@ -350,8 +357,9 @@ export function AutoDjQueuePanel({
                 Source
               </span>
               <div className="inline-flex rounded-lg border border-white/10 bg-black/25 p-0.5">
-                {(['library', 'folder', 'playlist'] as const).map((scopeType) => {
+                {(['library', 'liked', 'folder', 'playlist'] as const).map((scopeType) => {
                   const disabled =
+                    (scopeType === 'liked' && likedTracksCount === 0) ||
                     (scopeType === 'folder' && activeFolders.length === 0) ||
                     (scopeType === 'playlist' && playlists.length === 0)
                   const active = autoDjConfig.scope.type === scopeType

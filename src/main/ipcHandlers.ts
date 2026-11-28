@@ -223,6 +223,17 @@ export function registerIpcHandlers(deps: IpcHandlerDeps): void {
   })
 
   ipcMain.handle(
+    IPC_CHANNELS.TRACKS_TOGGLE_LIKE,
+    (_event, trackId: number, liked?: boolean) => {
+      const updated = repos.tracks.toggleLike(trackId, liked)
+      if (updated) {
+        emitTracksChanged()
+      }
+      return updated
+    }
+  )
+
+  ipcMain.handle(
     IPC_CHANNELS.LYRICS_GET_FOR_TRACK,
     (_event, trackId: number, options?: LyricsFetchOptions) =>
       lyricsService.getForTrack(trackId, options)

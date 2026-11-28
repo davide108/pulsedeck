@@ -50,6 +50,7 @@ function getShortcutsList(): Array<{ keys: string; desc: string }> {
     { keys: 'S', desc: 'Toggle Shuffle (Random)' },
     { keys: 'R', desc: 'Cycle Repeat (Off / All / One)' },
     { keys: 'D', desc: 'Toggle Auto-Mix' },
+    { keys: 'H', desc: 'Like / Unlike active track' },
     { keys: 'L', desc: 'Toggle Lyrics view' },
     { keys: 'I', desc: 'Track Info & Edit Metadata' },
     { keys: 'M', desc: 'Mute / Unmute audio' },
@@ -188,6 +189,12 @@ export function SettingsView() {
       updateAutoDjConfig({ scope: { type: 'library' } })
       return
     }
+    if (nextType === 'liked') {
+      if (facets.likedTracks > 0) {
+        updateAutoDjConfig({ scope: { type: 'liked' } })
+      }
+      return
+    }
     if (nextType === 'folder') {
       const targetId =
         autoDjConfig.scope.type === 'folder'
@@ -235,7 +242,7 @@ export function SettingsView() {
   const updateStatus = updateState?.status ?? 'idle'
   const isCheckingUpdate = updateStatus === 'checking'
   const isDownloadingUpdate = updateStatus === 'downloading'
-  const currentVersion = updateState?.currentVersion ?? '1.3.5'
+  const currentVersion = updateState?.currentVersion ?? '1.4.0'
 
   return (
     <div className="flex-1 overflow-y-auto px-6 py-6">
@@ -641,12 +648,13 @@ export function SettingsView() {
 
           <SettingRow
             title="Auto-Mix Source Scope"
-            description="Restrict Auto-Mix queue picks to your entire library, a specific folder, or a playlist."
+            description="Restrict Auto-Mix queue picks to your entire library, liked songs, a specific folder, or a playlist."
             control={
               <div className="flex flex-wrap items-center gap-2">
                 <div className="inline-flex rounded-xl border border-white/10 bg-black/30 p-1">
-                  {(['library', 'folder', 'playlist'] as const).map((scopeType) => {
+                  {(['library', 'liked', 'folder', 'playlist'] as const).map((scopeType) => {
                     const disabled =
+                      (scopeType === 'liked' && facets.likedTracks === 0) ||
                       (scopeType === 'folder' && activeFolders.length === 0) ||
                       (scopeType === 'playlist' && playlists.length === 0)
                     const active = autoDjConfig.scope.type === scopeType
@@ -662,7 +670,7 @@ export function SettingsView() {
                             : 'text-slate-400 hover:text-white disabled:opacity-35'
                         }`}
                       >
-                        {scopeType}
+                        {scopeType === 'liked' ? 'Liked Songs' : scopeType}
                       </button>
                     )
                   })}

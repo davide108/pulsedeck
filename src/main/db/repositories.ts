@@ -94,6 +94,7 @@ interface TrackRow {
   last_played_at: number | null
   added_at: number
   metadata_edited_at: number | null
+  liked_at: number | null
 }
 
 interface TrackLyricsRow {
@@ -201,7 +202,9 @@ function mapTrackRow(row: TrackRow): TrackRecord {
     playCount: row.play_count,
     lastPlayedAt: row.last_played_at,
     addedAt: row.added_at,
-    metadataEditedAt: row.metadata_edited_at ?? null
+    metadataEditedAt: row.metadata_edited_at ?? null,
+    isLiked: row.liked_at != null,
+    likedAt: row.liked_at ?? null
   }
 }
 
@@ -628,7 +631,9 @@ export function createRepositories(db: Database.Database) {
         params.push(filter.bpmMax)
       }
 
-      if (filter.smartView === 'most_played') {
+      if (filter.smartView === 'liked') {
+        conditions.push('t.liked_at IS NOT NULL')
+      } else if (filter.smartView === 'most_played') {
         conditions.push('t.play_count > 0')
       } else if (filter.smartView === 'high_energy') {
         conditions.push('t.energy IS NOT NULL AND t.energy >= 0.65')
@@ -645,6 +650,8 @@ export function createRepositories(db: Database.Database) {
         }
       } else if (filter.playlistId != null) {
         orderByClause = 'pt.position ASC, t.id ASC'
+      } else if (filter.smartView === 'liked') {
+        orderByClause = 't.liked_at DESC, t.id DESC'
       } else if (filter.smartView === 'recently_added') {
         orderByClause = 't.added_at DESC, t.id DESC'
       } else if (filter.smartView === 'most_played') {
@@ -665,7 +672,7 @@ export function createRepositories(db: Database.Database) {
                t.duration, t.artwork_path, t.bpm, t.bpm_source, t.musical_key, t.camelot_key,
                t.key_source, t.replaygain_db, t.energy, ${waveformColumn},
                t.intro_cue_sec, t.outro_cue_sec, t.analysis_status, t.is_missing,
-               t.play_count, t.last_played_at, t.added_at, t.metadata_edited_at
+               t.play_count, t.last_played_at, t.added_at, t.metadata_edited_at, t.liked_at
         FROM tracks t
         ${joins.join('\n')}
         ${whereSql}
@@ -714,7 +721,8 @@ export function createRepositories(db: Database.Database) {
           `SELECT MIN(t.bpm) AS min_bpm,
                   MAX(t.bpm) AS max_bpm,
                   COUNT(*) AS total_tracks,
-                  SUM(CASE WHEN t.analysis_status = 'done' THEN 1 ELSE 0 END) AS analyzed_tracks
+                  SUM(CASE WHEN t.analysis_status = 'done' THEN 1 ELSE 0 END) AS analyzed_tracks,
+                  SUM(CASE WHEN t.liked_at IS NOT NULL THEN 1 ELSE 0 END) AS liked_tracks
            FROM tracks t
            INNER JOIN folders f ON f.id = t.folder_id
            WHERE f.is_active = 1 AND t.is_missing = 0`
@@ -724,6 +732,7 @@ export function createRepositories(db: Database.Database) {
         max_bpm: number | null
         total_tracks: number
         analyzed_tracks: number | null
+        liked_tracks: number | null
       }
 
       return {
@@ -732,7 +741,8 @@ export function createRepositories(db: Database.Database) {
         minBpm: statsRow.min_bpm ?? null,
         maxBpm: statsRow.max_bpm ?? null,
         totalTracks: Number(statsRow.total_tracks ?? 0),
-        analyzedTracks: Number(statsRow.analyzed_tracks ?? 0)
+        analyzedTracks: Number(statsRow.analyzed_tracks ?? 0),
+        likedTracks: Number(statsRow.liked_tracks ?? 0)
       }
     },
 
@@ -1054,6 +1064,18 @@ export function createRepositories(db: Database.Database) {
         trackId
       )
 
+      return tracks.getById(trackId)
+    },
+
+    toggleLike(trackId: number, liked?: boolean): TrackRecord | null {
+      const existing = db
+        .prepare('SELECT id, liked_at FROM tracks WHERE id = ?')
+        .get(trackId) as { id: number; liked_at: number | null } | undefined
+      if (!existing) return null
+
+      const shouldLike = typeof liked === 'boolean' ? liked : existing.liked_at == null
+      const nextLikedAt = shouldLike ? Date.now() : null
+      db.prepare('UPDATE tracks SET liked_at = ? WHERE id = ?').run(nextLikedAt, trackId)
       return tracks.getById(trackId)
     }
   }

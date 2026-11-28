@@ -20,7 +20,8 @@ const DEFAULT_FACETS: LibraryFacets = {
   minBpm: null,
   maxBpm: null,
   totalTracks: 0,
-  analyzedTracks: 0
+  analyzedTracks: 0,
+  likedTracks: 0
 }
 
 const DEFAULT_FILTER: TrackQueryFilter = {
@@ -101,6 +102,7 @@ interface LibraryState {
   reloadTrackMetadataFromFile: (trackId: number) => Promise<TrackRecord | null>
   pickTrackArtwork: (trackId: number) => Promise<TrackRecord | null>
   inspectTrackFile: (trackId: number) => Promise<TrackTechnicalInfo | null>
+  toggleTrackLike: (trackId: number, liked?: boolean) => Promise<TrackRecord | null>
 }
 
 let searchDebounceTimer: ReturnType<typeof setTimeout> | null = null
@@ -300,6 +302,9 @@ export const useLibraryStore = create<LibraryState>((set, get) => {
     }
     if (scope.type === 'playlist') {
       return window.api.tracks.query({ playlistId: scope.playlistId, includeMissing: false })
+    }
+    if (scope.type === 'liked') {
+      return window.api.tracks.query({ smartView: 'liked', includeMissing: false })
     }
     const cached = get().allTracks
     if (cached.length > 0) return cached
@@ -557,6 +562,85 @@ export const useLibraryStore = create<LibraryState>((set, get) => {
       return await window.api.tracks.inspectFile(trackId)
     } catch (err) {
       set({ errorMessage: err instanceof Error ? err.message : 'Failed to inspect track file' })
+      return null
+    }
+  },
+
+  toggleTrackLike: async (trackId, liked) => {
+    const prevState = get()
+    const prevTracks = prevState.tracks
+    const prevAllTracks = prevState.allTracks
+    const prevEditingTrack = prevState.editingTrack
+    const prevFacets = prevState.facets
+    const playerActiveTrack = usePlayerStore.getState().activeTrack
+    const existing =
+      prevTracks.find((t) => t.id === trackId) ??
+      prevAllTracks.find((t) => t.id === trackId) ??
+      (prevEditingTrack?.id === trackId ? prevEditingTrack : undefined) ??
+      (playerActiveTrack?.id === trackId ? playerActiveTrack : undefined)
+
+    const prevLiked = Boolean(existing?.isLiked)
+    const nextLiked = liked !== undefined ? liked : !prevLiked
+    const nextLikedAt = nextLiked ? (existing?.likedAt ?? Date.now()) : null
+    const likedDelta = existing ? (nextLiked === prevLiked ? 0 : nextLiked ? 1 : -1) : 0
+
+    const applyLikePatch = (track: TrackRecord): TrackRecord =>
+      track.id === trackId ? { ...track, isLiked: nextLiked, likedAt: nextLikedAt } : track
+
+    set((state) => {
+      const inLikedSmartView = state.activeView === 'smart' && state.activeSmartView === 'liked'
+      const nextTracks =
+        inLikedSmartView && !nextLiked
+          ? state.tracks.filter((t) => t.id !== trackId)
+          : state.tracks.map(applyLikePatch)
+      return {
+        tracks: nextTracks,
+        allTracks: state.allTracks.map(applyLikePatch),
+        editingTrack:
+          state.editingTrack?.id === trackId
+            ? applyLikePatch(state.editingTrack)
+            : state.editingTrack,
+        facets: {
+          ...state.facets,
+          likedTracks: Math.max(0, state.facets.likedTracks + likedDelta)
+        }
+      }
+    })
+
+    if (existing) {
+      usePlayerStore.getState().refreshActiveTrack(applyLikePatch(existing))
+    }
+
+    try {
+      const updated = await window.api.tracks.toggleLike(trackId, liked)
+      if (updated) {
+        set((state) => {
+          const inLikedSmartView = state.activeView === 'smart' && state.activeSmartView === 'liked'
+          const nextTracks =
+            inLikedSmartView && !updated.isLiked
+              ? state.tracks.filter((t) => t.id !== updated.id)
+              : state.tracks.map((t) => (t.id === updated.id ? updated : t))
+          return {
+            tracks: nextTracks,
+            allTracks: state.allTracks.map((t) => (t.id === updated.id ? updated : t)),
+            editingTrack: state.editingTrack?.id === updated.id ? updated : state.editingTrack
+          }
+        })
+        usePlayerStore.getState().refreshActiveTrack(updated)
+      }
+      await get().refreshAll()
+      return updated
+    } catch (err) {
+      set({
+        tracks: prevTracks,
+        allTracks: prevAllTracks,
+        editingTrack: prevEditingTrack,
+        facets: prevFacets,
+        errorMessage: err instanceof Error ? err.message : 'Failed to toggle liked status'
+      })
+      if (existing) {
+        usePlayerStore.getState().refreshActiveTrack(existing)
+      }
       return null
     }
   }

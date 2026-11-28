@@ -6,6 +6,7 @@ import {
   ArrowUpDown,
   FolderOpen,
   FolderPlus,
+  Heart,
   Info,
   ListPlus,
   Music,
@@ -51,6 +52,7 @@ export function TrackTable({
   const addTrackToPlaylist = useLibraryStore((s) => s.addTrackToPlaylist)
   const revealTrackInFolder = useLibraryStore((s) => s.revealTrackInFolder)
   const openTrackInfo = useLibraryStore((s) => s.openTrackInfo)
+  const toggleTrackLike = useLibraryStore((s) => s.toggleTrackLike)
 
   const activeTrackId = usePlayerStore((s) => s.activeTrack?.id ?? null)
   const isPlaying = usePlayerStore((s) => s.isPlaying)
@@ -74,8 +76,8 @@ export function TrackTable({
   })
 
   const gridTemplate = playlistActions
-    ? 'grid-cols-[40px_minmax(210px,2.2fr)_minmax(120px,1.2fr)_110px_68px_72px_96px_64px_84px]'
-    : 'grid-cols-[40px_minmax(220px,2.2fr)_minmax(130px,1.2fr)_116px_70px_74px_100px_66px]'
+    ? 'grid-cols-[40px_minmax(210px,2.2fr)_minmax(120px,1.2fr)_110px_68px_72px_96px_32px_64px_84px]'
+    : 'grid-cols-[40px_minmax(220px,2.2fr)_minmax(130px,1.2fr)_116px_70px_74px_100px_32px_66px]'
 
   const renderSortHeader = (
     label: string,
@@ -139,6 +141,16 @@ export function TrackTable({
         onClick: () => void crossfadeToTrack(track, tracks)
       },
       {
+        id: 'toggle-like',
+        label: track.isLiked ? 'Remove from Liked Songs' : 'Save to Liked Songs',
+        icon: (
+          <Heart
+            className={`h-3.5 w-3.5 ${track.isLiked ? 'fill-rose-400 text-rose-400' : ''}`}
+          />
+        ),
+        onClick: () => void toggleTrackLike(track.id)
+      },
+      {
         id: 'track-info',
         label: 'Track Info & Edit Metadata',
         icon: <Info className="h-3.5 w-3.5" />,
@@ -179,6 +191,7 @@ export function TrackTable({
     crossfadeToTrack,
     openTrackInfo,
     revealTrackInFolder,
+    toggleTrackLike,
     playlistActions
   ])
 
@@ -248,6 +261,9 @@ export function TrackTable({
         {renderSortHeader('BPM', 'bpm', 'right')}
         {renderSortHeader('Key', 'camelot_key')}
         {renderSortHeader('Energy', 'energy')}
+        <span title="Liked" className="flex items-center justify-center">
+          <Heart className="mx-auto h-3 w-3 text-slate-500" />
+        </span>
         {renderSortHeader('Time', 'duration', 'right')}
         {playlistActions && (
           <span className="text-right text-[11px] font-semibold uppercase tracking-wider text-slate-500">
@@ -366,6 +382,31 @@ export function TrackTable({
                 {/* EnergyMeter */}
                 <div>
                   <EnergyMeter energy={track.energy} />
+                </div>
+
+                {/* Like / Heart */}
+                <div className="flex items-center justify-center">
+                  <button
+                    type="button"
+                    onClick={(e) => {
+                      e.stopPropagation()
+                      void toggleTrackLike(track.id)
+                    }}
+                    onDoubleClick={(e) => e.stopPropagation()}
+                    title={track.isLiked ? 'Remove from Liked Songs' : 'Save to Liked Songs'}
+                    aria-label={track.isLiked ? 'Remove from Liked Songs' : 'Save to Liked Songs'}
+                    className={`flex h-7 w-7 items-center justify-center rounded-lg transition-all ${
+                      track.isLiked
+                        ? 'text-rose-400 hover:bg-rose-500/15 hover:text-rose-300 opacity-100'
+                        : `text-slate-500 hover:bg-white/10 hover:text-rose-400 ${
+                            isActive
+                              ? 'opacity-70'
+                              : 'opacity-0 group-hover:opacity-100 focus:opacity-100'
+                          }`
+                    }`}
+                  >
+                    <Heart className={`h-3.5 w-3.5 ${track.isLiked ? 'fill-rose-400' : ''}`} />
+                  </button>
                 </div>
 
                 {/* Duration */}

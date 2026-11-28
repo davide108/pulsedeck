@@ -2,7 +2,7 @@ export type AudioFormat = 'mp3' | 'flac' | 'wav' | 'ogg' | 'm4a' | 'aac' | 'opus
 
 export type AnalysisStatus = 'pending' | 'done' | 'failed'
 
-export type SmartViewId = 'all' | 'recently_added' | 'most_played' | 'high_energy'
+export type SmartViewId = 'all' | 'liked' | 'recently_added' | 'most_played' | 'high_energy'
 
 export type LibraryView =
   | 'tracks'
@@ -22,6 +22,7 @@ export type TransitionDurationMode = 'fixed' | 'bars'
 
 export type AutoDjScope =
   | { type: 'library' }
+  | { type: 'liked' }
   | { type: 'folder'; folderId: number }
   | { type: 'playlist'; playlistId: number }
 
@@ -67,6 +68,8 @@ export interface TrackRecord {
   lastPlayedAt: number | null
   addedAt: number
   metadataEditedAt?: number | null
+  isLiked?: boolean
+  likedAt?: number | null
 }
 
 export interface TrackMetadataUpdateInput {
@@ -166,6 +169,7 @@ export interface LibraryFacets {
   maxBpm: number | null
   totalTracks: number
   analyzedTracks: number
+  likedTracks: number
 }
 
 export interface PlaylistRecord {

@@ -1,4 +1,5 @@
 import {
+  Heart,
   Maximize2,
   Pause,
   Play,
@@ -11,6 +12,7 @@ import {
 } from 'lucide-react'
 import { ArtworkCover } from '@/components/common/ArtworkCover'
 import { KeyBadge } from '@/components/common/KeyBadge'
+import { useLibraryStore } from '@/store/useLibraryStore'
 import { usePlayerStore } from '@/store/usePlayerStore'
 import { formatBpm, formatDuration } from '@/utils/format'
 
@@ -30,6 +32,7 @@ export function MiniPlayer() {
   const cycleRepeatMode = usePlayerStore((s) => s.cycleRepeatMode)
   const toggleAutoDj = usePlayerStore((s) => s.toggleAutoDj)
   const setMiniPlayer = usePlayerStore((s) => s.setMiniPlayer)
+  const toggleTrackLike = useLibraryStore((s) => s.toggleTrackLike)
 
   const activeDeck = telemetry.decks[telemetry.activeDeckId]
   const duration = activeDeck.duration || activeTrack?.duration || 0
@@ -80,14 +83,38 @@ export function MiniPlayer() {
           </div>
         </div>
 
-        <button
-          type="button"
-          onClick={() => void setMiniPlayer(false)}
-          title="Return to Full Player"
-          className="no-drag flex h-7 w-7 shrink-0 items-center justify-center rounded-lg border border-white/10 bg-white/[0.05] text-slate-300 hover:bg-white/15 hover:text-white transition-colors"
-        >
-          <Maximize2 className="h-3.5 w-3.5" />
-        </button>
+        <div className="no-drag flex shrink-0 items-center gap-1.5">
+          {activeTrack && (
+            <button
+              type="button"
+              onClick={() => void toggleTrackLike(activeTrack.id)}
+              title={
+                activeTrack.isLiked
+                  ? 'Remove from Liked Songs (H)'
+                  : 'Save to Liked Songs (H)'
+              }
+              aria-label={
+                activeTrack.isLiked ? 'Remove from Liked Songs' : 'Save to Liked Songs'
+              }
+              className={`flex h-7 w-7 shrink-0 items-center justify-center rounded-lg border transition-colors ${
+                activeTrack.isLiked
+                  ? 'border-rose-500/40 bg-rose-500/15 text-rose-400 hover:bg-rose-500/25'
+                  : 'border-white/10 bg-white/[0.05] text-slate-300 hover:bg-white/15 hover:text-rose-400'
+              }`}
+            >
+              <Heart className={`h-3.5 w-3.5 ${activeTrack.isLiked ? 'fill-rose-400' : ''}`} />
+            </button>
+          )}
+
+          <button
+            type="button"
+            onClick={() => void setMiniPlayer(false)}
+            title="Return to Full Player"
+            className="flex h-7 w-7 shrink-0 items-center justify-center rounded-lg border border-white/10 bg-white/[0.05] text-slate-300 hover:bg-white/15 hover:text-white transition-colors"
+          >
+            <Maximize2 className="h-3.5 w-3.5" />
+          </button>
+        </div>
       </div>
 
       {/* Mini Clickable Progress Bar */}
