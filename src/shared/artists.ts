@@ -9,10 +9,14 @@ const PROTECTED_COMMA_ARTISTS = [
   '10,000 Maniacs'
 ] as const
 
-const PROTECTED_ARTIST_PATTERNS = PROTECTED_COMMA_ARTISTS.map((name) => {
-  const escaped = name.replace(/[.*+?^${}()|[\]\\]/g, '\\$&').replace(/,\s+/g, ',\\s*')
-  return new RegExp(`(?<![\\p{L}\\p{N}])${escaped}(?![\\p{L}\\p{N}])`, 'giu')
-})
+const PROTECTED_ARTIST_PATTERNS = [
+  ...PROTECTED_COMMA_ARTISTS.map((name) => {
+    const escaped = name.replace(/[.*+?^${}()|[\]\\]/g, '\\$&').replace(/,\s+/g, ',\\s*')
+    return new RegExp(`(?<![\\p{L}\\p{N}])${escaped}(?![\\p{L}\\p{N}])`, 'giu')
+  }),
+  // Protect thousands-grouped numbers like "10,000" or "2,000" without blocking "D12, 50 Cent" or "D12,112"
+  /(?<![\p{L}\p{N}])\d{1,3}(?:,\d{3})+(?![\p{L}\p{N}])/gu
+]
 
 /**
  * Normalizes an artist display name into a whitespace-collapsed, case-folded lookup key.
@@ -55,7 +59,7 @@ export function parseArtistList(raw: string | null | undefined): string[] {
     })
   }
 
-  const pieces = working.split(/(?<!\d),(?!\d)/)
+  const pieces = working.split(',')
   const deduped = new Map<string, string>()
 
   for (const piece of pieces) {

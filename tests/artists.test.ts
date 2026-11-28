@@ -126,6 +126,18 @@ describe('artists parsing and integration', () => {
       ])
       expect(getPrimaryArtist('Tyler, The Creator, A$AP Rocky')).toBe('Tyler, The Creator')
     })
+
+    it('splits artist names ending or starting with digits', () => {
+      expect(parseArtistList('D12, 50 Cent')).toEqual(['D12', '50 Cent'])
+      expect(parseArtistList('D12,50 Cent')).toEqual(['D12', '50 Cent'])
+      expect(parseArtistList('Eminem,50 Cent')).toEqual(['Eminem', '50 Cent'])
+      expect(parseArtistList('Maroon 5, Cardi B')).toEqual(['Maroon 5', 'Cardi B'])
+      expect(parseArtistList('blink-182, Lil Wayne')).toEqual(['blink-182', 'Lil Wayne'])
+      expect(parseArtistList('deadmau5, Kaskade')).toEqual(['deadmau5', 'Kaskade'])
+      expect(parseArtistList('U2, Mary J. Blige')).toEqual(['U2', 'Mary J. Blige'])
+      expect(parseArtistList('702, 112')).toEqual(['702', '112'])
+      expect(parseArtistList('D12,112')).toEqual(['D12', '112'])
+    })
   })
 
   describe('resolveArtistFromTags', () => {
